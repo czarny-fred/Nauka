@@ -625,6 +625,113 @@
     .hidden { display: none !important; }
     hr.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 16px; }
     .feed-stack { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Featured card ── */
+    .featured-card {
+      background: var(--surface);
+      border: 2px solid #f59e0b;
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: 0 0 0 4px rgba(245,158,11,.10);
+      animation: fadeInUp 0.3s ease-out both;
+    }
+
+    .featured-badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      border-radius: 6px;
+      padding: 2px 10px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 10px;
+    }
+
+    body.dark .featured-card { border-color: #d97706; box-shadow: 0 0 0 4px rgba(217,119,6,.15); }
+    body.dark .featured-badge { background: #451a03; color: #fcd34d; border-color: #92400e; }
+
+    /* ── Comments ── */
+    .comments-section {
+      padding: 12px 0 4px;
+      border-top: 1px solid var(--border-2);
+      margin-top: 12px;
+    }
+
+    .comment-item {
+      display: flex;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border-2);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .comment-item:last-child { border-bottom: none; }
+    .comment-author { font-weight: 700; color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+    .comment-text   { color: var(--text-2); }
+
+    .comment-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .comment-input-row input {
+      flex: 1;
+      padding: 7px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: inherit;
+      outline: none;
+      transition: border-color var(--transition), background var(--transition), color var(--transition);
+    }
+
+    .comment-input-row input:focus { border-color: var(--accent); background: var(--surface); }
+
+    .btn-comment {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 600;
+      transition: all var(--transition);
+    }
+
+    .btn-comment:hover, .btn-comment.active {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* ── Follow button ── */
+    .btn-follow {
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all var(--transition);
+    }
+
+    .btn-follow.following {
+      background: var(--surface-2);
+      color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+
+    .btn-follow.following:hover { background: var(--error-bg); color: var(--error-text); border-color: var(--error-border); }
+    .btn-follow.not-following { background: var(--accent); color: #fff; }
+    .btn-follow.not-following:hover { background: var(--accent-hover); }
   </style>
 </head>
 <body>
@@ -724,6 +831,7 @@
 
   <!-- ── Feed ── -->
   <section id="page-feed">
+    <div id="featured-section" class="hidden"></div>
     <p class="section-heading">Feed osiągnięć</p>
     <div id="feed-loading" class="state-msg">Ładowanie…</div>
     <div id="feed-empty"   class="state-msg hidden">Brak proofów. Bądź pierwszy!</div>
@@ -802,7 +910,10 @@
                 onclick="backToRanking()">← Wróć</button>
         <h2 style="margin:0;" id="pub-profile-title"></h2>
       </div>
-      <div id="pub-stats" style="font-size:0.88rem;color:var(--text-2);margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+        <div id="pub-stats" style="font-size:0.88rem;color:var(--text-2);display:flex;gap:18px;flex-wrap:wrap;"></div>
+        <div id="pub-follow-btn"></div>
+      </div>
       <div id="pub-loading" class="state-msg">Ładowanie…</div>
       <div id="pub-feed" class="feed-stack"></div>
     </div>
@@ -831,10 +942,10 @@
   // Przywróć tryb z localStorage natychmiast (przed renderem)
   if (localStorage.getItem("darkMode") === "true") document.body.classList.add("dark");
 
-  let user        = null;
-  let currentPage = "feed";
-  // Zbiór proof_id, które aktualny user już lajkował — uzupełniany w loadProofs()
-  let myLikedIds  = new Set();
+  let user           = null;
+  let currentPage    = "feed";
+  let myLikedIds     = new Set();   // proof_id lajkowane przez usera
+  let myFollowingIds = new Set();   // user_id obserwowanych przez usera
 
   // ══════════════════════════════════════════
   //  INICJALIZACJA
@@ -846,7 +957,7 @@
   (async () => {
     const { data } = await supabaseClient.auth.getSession();
     if (data.session) setUser(data.session.user);
-    await loadProofs();
+    await Promise.all([loadProofs(), loadFeatured()]);
     document.getElementById("app-loading").style.display = "none";
   })();
 
@@ -958,7 +1069,8 @@
   // ══════════════════════════════════════════
   async function logout() {
     await supabaseClient.auth.signOut();
-    myLikedIds = new Set();
+    myLikedIds     = new Set();
+    myFollowingIds = new Set();
     setUser(null);
   }
 
@@ -985,13 +1097,13 @@
     if (error) {
       showMsg("msg-proof", error.message, "error");
     } else {
-      showMsg("msg-proof", "Proof opublikowany! +10 XP 🎉", "success");
+      showMsg("msg-proof", "Proof opublikowany! +20 XP 🎉", "success");
       const addSection = document.getElementById("page-add");
       addSection.classList.add("pop");
       addSection.addEventListener("animationend", () => addSection.classList.remove("pop"), { once: true });
       ["proof-title","proof-problem","proof-solution","proof-result","proof-link"]
         .forEach(id => { document.getElementById(id).value = ""; });
-      await addXP(10);
+      await addXP(20);
       await loadProofs();
     }
   }
@@ -1028,24 +1140,56 @@
     loadingEl.classList.remove("hidden");
     emptyEl.classList.add("hidden");
 
-    // Uruchamiamy oba requesty równolegle
     const proofReq = supabaseClient
       .from("proofs")
-      .select("*, likes(count)")
+      .select("*, likes(count), comments(count)")
       .order("created_at", { ascending: false });
 
     const likeReq = user
       ? supabaseClient.from("likes").select("proof_id").eq("user_id", user.id)
       : Promise.resolve({ data: [] });
 
-    const [{ data, error }, { data: liked }] = await Promise.all([proofReq, likeReq]);
+    const followReq = user
+      ? supabaseClient.from("follows").select("following_id").eq("follower_id", user.id)
+      : Promise.resolve({ data: [] });
+
+    const [{ data, error }, { data: liked }, { data: following }] =
+      await Promise.all([proofReq, likeReq, followReq]);
 
     loadingEl.classList.add("hidden");
 
     if (error) { alert(error.message); return; }
 
-    // Zaktualizuj zbiór lajkowanych przez usera
-    myLikedIds = new Set((liked || []).map(l => l.proof_id));
+    myLikedIds     = new Set((liked     || []).map(l => l.proof_id));
+    myFollowingIds = new Set((following || []).map(f => f.following_id));
+
+    if (!data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
+
+    // Pobierz xp autorów (jeden request, nie N+1)
+    const authorIds = [...new Set(data.map(p => p.user_id))];
+    const { data: profiles } = await supabaseClient
+      .from("profiles").select("id, xp").in("id", authorIds);
+    const xpMap = new Map((profiles || []).map(p => [p.id, p.xp || 0]));
+
+    // Scoring: lajki×3 + komentarze×5 + świeżość (max 10) + xp_autora/50
+    const now = Date.now();
+    const scored = data.map(p => {
+      const daysOld     = (now - new Date(p.created_at)) / 86400000;
+      const likeCount   = p.likes?.[0]?.count    || 0;
+      const commentCount= p.comments?.[0]?.count || 0;
+      const score       = likeCount * 3 + commentCount * 5
+                        + Math.max(0, 10 - daysOld)
+                        + (xpMap.get(p.user_id) || 0) / 50;
+      return { ...p, _score: score };
+    }).sort((a, b) => b._score - a._score);
+
+    renderFeed(scored);
+  }
+
+  function renderFeed(data) {
+    const feedEl  = document.getElementById("feed");
+    const emptyEl = document.getElementById("feed-empty");
+    feedEl.innerHTML = "";
 
     if (!data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
@@ -1095,6 +1239,16 @@
     } else {
       await supabaseClient.from("likes")
         .insert([{ user_id: user.id, proof_id: proofId }]);
+      // +2 XP właścicielowi proofa
+      const ownerId = btn?.dataset.proofOwner;
+      if (ownerId && ownerId !== user.id) {
+        const { data: p } = await supabaseClient
+          .from("profiles").select("xp").eq("id", ownerId).single();
+        const newXP = (p?.xp || 0) + 2;
+        await supabaseClient.from("profiles")
+          .update({ xp: newXP, level: Math.floor(newXP / 100) + 1 })
+          .eq("id", ownerId);
+      }
     }
   }
 
@@ -1285,28 +1439,50 @@
     document.getElementById("pub-profile-title").textContent = `👤 ${username}`;
     document.getElementById("pub-feed").innerHTML = "";
     document.getElementById("pub-stats").innerHTML = "";
+    document.getElementById("pub-follow-btn").innerHTML = "";
     const loadingEl = document.getElementById("pub-loading");
     loadingEl.classList.remove("hidden");
 
-    const { data, error } = await supabaseClient
-      .from("proofs")
-      .select("*, likes(count)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+    // Proofs + follower count równolegle
+    const [{ data, error }, { count: followerCount }, { count: followingCount }] =
+      await Promise.all([
+        supabaseClient.from("proofs").select("*, likes(count), comments(count)")
+          .eq("user_id", userId).order("created_at", { ascending: false }),
+        supabaseClient.from("follows").select("*", { count: "exact", head: true })
+          .eq("following_id", userId),
+        supabaseClient.from("follows").select("*", { count: "exact", head: true })
+          .eq("follower_id", userId),
+      ]);
 
     loadingEl.classList.add("hidden");
 
-    if (error || !data || data.length === 0) {
+    if (error) { document.getElementById("pub-feed").innerHTML = '<p class="state-msg">Błąd ładowania.</p>'; return; }
+
+    const totalLikes = (data || []).reduce((s, p) => s + (p.likes?.[0]?.count || 0), 0);
+    document.getElementById("pub-stats").innerHTML = `
+      <span>📄 <strong>${data?.length || 0}</strong> proofów</span>
+      <span><span class="like-icon-sm"></span> <strong>${totalLikes}</strong> lajków</span>
+      <span>👥 <strong>${followerCount || 0}</strong> obserwujących</span>
+      <span>➡️ <strong>${followingCount || 0}</strong> obserwuje</span>
+      <span style="color:var(--accent);">★ <strong>${totalLikes * 2 + (data?.length || 0) * 5}</strong> pkt</span>
+    `;
+
+    // Przycisk follow (tylko dla innych userów)
+    if (user && userId !== user.id) {
+      const isFollowing = myFollowingIds.has(userId);
+      document.getElementById("pub-follow-btn").innerHTML = `
+        <button class="btn-follow ${isFollowing ? 'following' : 'not-following'}"
+                id="follow-btn-${userId}"
+                onclick="toggleFollow('${userId}')">
+          ${isFollowing ? 'Obserwujesz ✓' : '+ Obserwuj'}
+        </button>
+      `;
+    }
+
+    if (!data || data.length === 0) {
       document.getElementById("pub-feed").innerHTML = '<p class="state-msg">Brak proofów.</p>';
       return;
     }
-
-    const totalLikes = data.reduce((s, p) => s + (p.likes[0]?.count || 0), 0);
-    document.getElementById("pub-stats").innerHTML = `
-      <span>📄 Proofów: <strong>${data.length}</strong></span>
-      <span><span class="like-icon-sm"></span> Lajków: <strong>${totalLikes}</strong></span>
-      <span style="color:var(--accent);">★ Wynik: <strong>${totalLikes * 2 + data.length * 5}</strong></span>
-    `;
 
     const feedEl = document.getElementById("pub-feed");
     data.forEach(proof => feedEl.appendChild(createProofCard(proof, false)));
@@ -1318,13 +1494,43 @@
   }
 
   // ══════════════════════════════════════════
+  //  FOLLOW / UNFOLLOW
+  // ══════════════════════════════════════════
+  async function toggleFollow(userId) {
+    if (!user) return;
+
+    const btn = document.getElementById(`follow-btn-${userId}`);
+    const isFollowing = myFollowingIds.has(userId);
+
+    // Optymistyczna aktualizacja
+    if (isFollowing) {
+      myFollowingIds.delete(userId);
+      if (btn) { btn.textContent = "+ Obserwuj"; btn.className = "btn-follow not-following"; }
+    } else {
+      myFollowingIds.add(userId);
+      if (btn) { btn.textContent = "Obserwujesz ✓"; btn.className = "btn-follow following"; }
+    }
+
+    if (isFollowing) {
+      const { data } = await supabaseClient.from("follows").select("id")
+        .eq("follower_id", user.id).eq("following_id", userId).maybeSingle();
+      if (data) await supabaseClient.from("follows").delete().eq("id", data.id);
+    } else {
+      await supabaseClient.from("follows")
+        .insert([{ follower_id: user.id, following_id: userId }]);
+    }
+  }
+
+  // ══════════════════════════════════════════
   //  XP I LEVELE
   // ══════════════════════════════════════════
   async function addXP(amount) {
     const { data: p } = await supabaseClient
       .from("profiles").select("xp").eq("id", user.id).single();
     const newXP = (p?.xp || 0) + amount;
-    await supabaseClient.from("profiles").update({ xp: newXP }).eq("id", user.id);
+    await supabaseClient.from("profiles")
+      .update({ xp: newXP, level: Math.floor(newXP / 100) + 1 })
+      .eq("id", user.id);
     updateXPDisplay(newXP);
   }
 
@@ -1342,9 +1548,10 @@
     const card = document.createElement("article");
     card.className = "proof-card";
 
-    const date  = new Date(proof.created_at).toLocaleDateString("pl-PL",
+    const date         = new Date(proof.created_at).toLocaleDateString("pl-PL",
       { day: "numeric", month: "long", year: "numeric" });
-    const count = proof.likes?.[0]?.count || 0;
+    const likeCount    = proof.likes?.[0]?.count    || 0;
+    const commentCount = proof.comments?.[0]?.count || 0;
     const liked = myLikedIds.has(proof.id);
 
     const linkHtml = proof.proof_link
@@ -1369,17 +1576,145 @@
           ${linkHtml}
           <button class="btn-like${liked ? " liked" : ""}"
                   data-like-btn="${proof.id}"
+                  data-proof-owner="${proof.user_id}"
                   title="${liked ? "Cofnij lajk" : "Lubię to"}"
                   onclick="toggleLike('${proof.id}')">
             <span class="like-icon${liked ? " dislike" : ""}"></span>
           </button>
-          <span class="like-count" data-like-count="${proof.id}">${count}</span>
+          <span class="like-count" data-like-count="${proof.id}">${likeCount}</span>
+          <button class="btn-comment" id="comments-toggle-${proof.id}"
+                  onclick="toggleComments('${proof.id}')">
+            💬 <span id="comment-count-${proof.id}">${commentCount}</span>
+          </button>
           ${deleteBtn}
         </div>
       </div>
     `;
 
+    // Sekcja komentarzy (lazy-loaded)
+    const commentsSection = document.createElement("div");
+    commentsSection.id        = `comments-section-${proof.id}`;
+    commentsSection.className = "comments-section hidden";
+    commentsSection.innerHTML = `
+      <div class="comments-list" id="comments-list-${proof.id}">
+        <p class="state-msg" style="padding:10px 0;">Ładowanie komentarzy…</p>
+      </div>
+      ${user ? `
+        <div class="comment-input-row">
+          <input type="text" id="comment-input-${proof.id}"
+                 placeholder="Napisz komentarz…"
+                 onkeydown="if(event.key==='Enter') submitComment('${proof.id}')" />
+          <button class="btn btn-primary" style="padding:7px 14px;font-size:0.85rem;white-space:nowrap;"
+                  onclick="submitComment('${proof.id}')">Wyślij</button>
+        </div>
+      ` : ""}
+    `;
+    card.appendChild(commentsSection);
+
     return card;
+  }
+
+  // ══════════════════════════════════════════
+  //  KOMENTARZE
+  // ══════════════════════════════════════════
+  async function toggleComments(proofId) {
+    const section = document.getElementById(`comments-section-${proofId}`);
+    const btn     = document.getElementById(`comments-toggle-${proofId}`);
+    if (!section) return;
+
+    const isHidden = section.classList.contains("hidden");
+    section.classList.toggle("hidden", !isHidden);
+    btn?.classList.toggle("active", isHidden);
+
+    if (isHidden) await loadComments(proofId);
+  }
+
+  async function loadComments(proofId) {
+    const listEl = document.getElementById(`comments-list-${proofId}`);
+    if (!listEl) return;
+
+    const { data, error } = await supabaseClient
+      .from("comments")
+      .select("*, profiles!user_id(username)")
+      .eq("proof_id", proofId)
+      .order("created_at", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      listEl.innerHTML = '<p style="font-size:0.83rem;color:var(--text-muted);padding:6px 0;">Brak komentarzy. Bądź pierwszy!</p>';
+      return;
+    }
+
+    listEl.innerHTML = data.map(c => `
+      <div class="comment-item">
+        <span class="comment-author">${escapeHtml(c.profiles?.username || "?")}</span>
+        <span class="comment-text">${escapeHtml(c.content)}</span>
+      </div>
+    `).join("");
+  }
+
+  async function submitComment(proofId) {
+    if (!user) return;
+    const input = document.getElementById(`comment-input-${proofId}`);
+    const text  = input?.value.trim();
+    if (!text) return;
+
+    input.value = "";
+    input.disabled = true;
+
+    const { error } = await supabaseClient.from("comments")
+      .insert([{ user_id: user.id, proof_id: proofId, content: text }]);
+
+    input.disabled = false;
+    if (error) { alert(error.message); return; }
+
+    // Odśwież komentarze i licznik
+    await loadComments(proofId);
+    const countEl = document.getElementById(`comment-count-${proofId}`);
+    if (countEl) countEl.textContent = parseInt(countEl.textContent || "0") + 1;
+
+    // +5 XP za komentarz
+    await addXP(5);
+  }
+
+  // ══════════════════════════════════════════
+  //  FEATURED PROOF (post dnia)
+  // ══════════════════════════════════════════
+  async function loadFeatured() {
+    const section = document.getElementById("featured-section");
+    if (!section) return;
+
+    const { data, error } = await supabaseClient
+      .from("proofs")
+      .select("*, profiles!user_id(username)")
+      .eq("featured", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return;
+
+    section.classList.remove("hidden");
+    section.innerHTML = `
+      <div class="featured-card">
+        <div class="featured-badge">🌟 Post dnia</div>
+        <div class="proof-title" style="margin-bottom:6px;">${escapeHtml(data.title)}</div>
+        <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:10px;">
+          od <strong>${escapeHtml(data.profiles?.username || "?")}</strong>
+        </p>
+        <p class="proof-text">${escapeHtml(data.result)}</p>
+        ${data.proof_link
+          ? `<a class="proof-link" href="${escapeHtml(data.proof_link)}" target="_blank" rel="noopener noreferrer" style="margin-top:8px;display:inline-block;">Dowód →</a>`
+          : ""}
+      </div>
+    `;
+  }
+
+  async function setFeatured(proofId) {
+    // Odznacz poprzedni featured
+    await supabaseClient.from("proofs").update({ featured: false }).eq("featured", true);
+    // Ustaw nowy
+    const { error } = await supabaseClient.from("proofs")
+      .update({ featured: true }).eq("id", proofId);
+    if (!error) await loadFeatured();
   }
 
   // ══════════════════════════════════════════
