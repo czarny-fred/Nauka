@@ -440,28 +440,71 @@
     .rank-item {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
+      gap: 12px;
+      padding: 12px 14px;
       background: var(--surface-2);
       border: 1px solid var(--border-2);
-      border-radius: 8px;
+      border-radius: 12px;
       transition: background var(--transition), border-color var(--transition),
                   transform var(--transition), box-shadow var(--transition);
+      cursor: pointer;
     }
 
-    .rank-item:hover { transform: translateX(3px); box-shadow: var(--shadow-sm); }
+    .rank-item:hover { transform: translateX(4px); box-shadow: var(--shadow-md); border-color: var(--accent); }
+
+    .rank-pos {
+      font-size: 1.1rem;
+      font-weight: 800;
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .rank-avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--accent-bg);
+      border: 2px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 700; color: var(--accent);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .rank-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .rank-info { flex: 1; min-width: 0; }
 
     .rank-name {
       font-weight: 700;
-      font-size: 0.93rem;
-      cursor: pointer;
+      font-size: 0.95rem;
       color: var(--text);
-      text-decoration: underline;
-      text-underline-offset: 3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
-    .rank-stats { display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-2); }
-    .rank-score { font-weight: 700; color: var(--accent); }
+    .rank-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 1px; }
+
+    .rank-score-box {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .rank-score { font-weight: 800; font-size: 1rem; color: var(--accent); }
+    .rank-score-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; }
+
+    /* Sprite like w rankingu */
+    .like-icon-sm {
+      display: inline-block;
+      width: 16px; height: 16px;
+      background-image: url('resourcesSkillProof/like.png');
+      background-size: 200% auto;
+      background-repeat: no-repeat;
+      background-position: 0% center;
+      vertical-align: middle;
+    }
 
     /* ── Animations ── */
     @keyframes fadeIn {
@@ -739,11 +782,14 @@
 
   <!-- ── Ranking ── -->
   <section class="card hidden" id="page-ranking">
-    <h2>🏆 Ranking użytkowników</h2>
-    <p style="font-size:0.78rem;color:#aaa;margin-top:-10px;margin-bottom:16px;">wynik = lajki × 2 + proofy</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h2 style="margin:0;">🏆 Leaderboard</h2>
+      <span id="ranking-updated" style="font-size:0.75rem;color:var(--text-muted);"></span>
+    </div>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:18px;">wynik = lajki × 2 + proofy × 5</p>
     <div id="ranking-loading" class="state-msg">Ładowanie…</div>
     <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
-    <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:10px;"></ol>
+    <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
   </section>
 
 </main>
@@ -1153,6 +1199,7 @@
     const listEl    = document.getElementById("ranking");
     const loadingEl = document.getElementById("ranking-loading");
     const emptyEl   = document.getElementById("ranking-empty");
+    const updatedEl = document.getElementById("ranking-updated");
 
     listEl.innerHTML = "";
     loadingEl.classList.remove("hidden");
@@ -1160,38 +1207,54 @@
 
     const { data, error } = await supabaseClient
       .from("profiles")
-      .select("id, username, proofs(count), likes(count)");
+      .select("id, username, avatar_url, proofs(count), likes(count)");
 
     loadingEl.classList.add("hidden");
 
     if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
-    const medals  = ["🥇","🥈","🥉"];
-    const ranked  = data
+    const medals = ["🥇", "🥈", "🥉"];
+
+    const ranked = data
       .map(p => ({
-        id:       p.id,
-        username: p.username || p.id.slice(0, 8),
-        proofs:   p.proofs[0]?.count || 0,
-        likes:    p.likes[0]?.count  || 0,
-        score:    (p.likes[0]?.count || 0) * 2 + (p.proofs[0]?.count || 0),
+        id:         p.id,
+        username:   p.username || p.id.slice(0, 8),
+        avatar_url: p.avatar_url || null,
+        proofs:     p.proofs[0]?.count || 0,
+        likes:      p.likes[0]?.count  || 0,
+        // scoring: lajki × 2 + proofy × 5
+        score:      (p.likes[0]?.count || 0) * 2 + (p.proofs[0]?.count || 0) * 5,
       }))
       .sort((a, b) => b.score - a.score);
+
+    const avatarHtml = (entry) => entry.avatar_url
+      ? `<img src="${escapeHtml(entry.avatar_url)}" alt="" />`
+      : escapeHtml(entry.username[0]?.toUpperCase() || "?");
 
     ranked.forEach((entry, i) => {
       const li = document.createElement("li");
       li.className = "rank-item";
+      li.onclick = () => showPublicProfile(entry.id, entry.username);
       li.innerHTML = `
-        <span class="rank-name" onclick="showPublicProfile('${entry.id}', '${escapeHtml(entry.username)}')">
-          ${medals[i] ?? `#${i + 1}`} ${escapeHtml(entry.username)}
-        </span>
-        <span class="rank-stats">
-          <span>📄 ${entry.proofs}</span>
-          <span>❤️ ${entry.likes}</span>
-          <span class="rank-score">★ ${entry.score}</span>
-        </span>
+        <span class="rank-pos">${medals[i] ?? `<span style="color:var(--text-muted)">#${i + 1}</span>`}</span>
+        <div class="rank-avatar">${avatarHtml(entry)}</div>
+        <div class="rank-info">
+          <div class="rank-name">${escapeHtml(entry.username)}</div>
+          <div class="rank-sub">
+            📄 ${entry.proofs} &nbsp;
+            <span class="like-icon-sm"></span> ${entry.likes}
+          </div>
+        </div>
+        <div class="rank-score-box">
+          <span class="rank-score">${entry.score}</span>
+          <span class="rank-score-label">punktów</span>
+        </div>
       `;
       listEl.appendChild(li);
     });
+
+    // Znacznik czasu ostatniej aktualizacji
+    if (updatedEl) updatedEl.textContent = `aktualizacja: ${new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}`;
   }
 
   // ══════════════════════════════════════════
@@ -1227,8 +1290,8 @@
     const totalLikes = data.reduce((s, p) => s + (p.likes[0]?.count || 0), 0);
     document.getElementById("pub-stats").innerHTML = `
       <span>📄 Proofów: <strong>${data.length}</strong></span>
-      <span>❤️ Lajków: <strong>${totalLikes}</strong></span>
-      <span style="color:#4f46e5;">★ Wynik: <strong>${totalLikes * 2 + data.length}</strong></span>
+      <span><span class="like-icon-sm"></span> Lajków: <strong>${totalLikes}</strong></span>
+      <span style="color:var(--accent);">★ Wynik: <strong>${totalLikes * 2 + data.length * 5}</strong></span>
     `;
 
     const feedEl = document.getElementById("pub-feed");
