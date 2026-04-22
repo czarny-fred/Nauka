@@ -798,6 +798,74 @@
     .btn-follow.following:hover { background: var(--error-bg); color: var(--error-text); border-color: var(--error-border); }
     .btn-follow.not-following { background: var(--accent); color: #fff; }
     .btn-follow.not-following:hover { background: var(--accent-hover); }
+
+    /* ── Checkbox toggle ── */
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      font-size: 0.93rem;
+      font-weight: 600;
+      color: var(--text);
+      padding: 10px 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: background var(--transition), border-color var(--transition);
+    }
+
+    .checkbox-label:hover { border-color: var(--accent); background: var(--accent-bg); }
+    .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+    /* ── Project cards ── */
+    .project-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: box-shadow var(--transition), transform var(--transition),
+                  background var(--transition), border-color var(--transition);
+      box-shadow: var(--shadow-sm);
+      animation: fadeInUp 0.25s ease-out both;
+    }
+
+    .project-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--accent); }
+
+    .project-card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .project-card-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .projects-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Project detail header ── */
+    .project-detail-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .project-folder-icon {
+      font-size: 2rem;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
@@ -821,6 +889,7 @@
   <button class="nav-btn active" onclick="show('feed')">Feed</button>
   <button class="nav-btn"        onclick="show('add')">+ Dodaj</button>
   <button class="nav-btn"        onclick="show('profile')">Mój profil</button>
+  <button class="nav-btn"        onclick="show('projects')">📁 Projekty</button>
   <button class="nav-btn"        onclick="show('ranking')">Ranking</button>
   <button class="nav-btn"        onclick="show('settings')">Ustawienia</button>
 </nav>
@@ -898,11 +967,25 @@
         <option value="geografia">🌍 Geografia</option>
         <option value="angielski">🇬🇧 Angielski</option>
         <option value="wf">🏃 WF</option>
+        <option value="inne">📌 Inne</option>
       </select>
     </div>
     <div class="form-group">
       <label>Link do dowodu (opcjonalnie)</label>
       <input type="url" id="proof-link" placeholder="https://github.com/..." />
+    </div>
+    <hr class="divider" />
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="is-project" onchange="toggleProjectFields()" />
+        📁 Utwórz nowy projekt z tego proofa
+      </label>
+    </div>
+    <div id="existing-project-group" class="form-group">
+      <label>Dodaj do istniejącego projektu (opcjonalnie)</label>
+      <select id="proof-project-id">
+        <option value="">— brak —</option>
+      </select>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="addProof()">Opublikuj Proof</button>
@@ -926,6 +1009,7 @@
       <button class="btn-filter" onclick="filterFeed('geografia')">🌍 Geografia</button>
       <button class="btn-filter" onclick="filterFeed('angielski')">🇬🇧 Angielski</button>
       <button class="btn-filter" onclick="filterFeed('wf')">🏃 WF</button>
+      <button class="btn-filter" onclick="filterFeed('inne')">📌 Inne</button>
     </div>
     <div id="feed-loading" class="state-msg">Ładowanie…</div>
     <div id="feed-empty"   class="state-msg hidden">Brak proofów. Bądź pierwszy!</div>
@@ -1014,6 +1098,35 @@
 
   </section>
 
+  <!-- ── Projects ── -->
+  <section class="card hidden" id="page-projects">
+
+    <!-- Lista projektów -->
+    <div id="projects-list-view">
+      <h2 style="margin-bottom:18px;">📁 Moje Projekty</h2>
+      <div id="projects-loading" class="state-msg">Ładowanie…</div>
+      <div id="projects-empty"   class="state-msg hidden">Nie masz jeszcze żadnych projektów.<br>Zaznacz "Utwórz nowy projekt" podczas dodawania proofa.</div>
+      <div id="projects-grid" class="projects-grid"></div>
+    </div>
+
+    <!-- Widok projektu -->
+    <div id="project-detail-view" class="hidden">
+      <div class="project-detail-header">
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:0.85rem;flex-shrink:0;"
+                onclick="backToProjects()">← Wróć</button>
+        <span class="project-folder-icon">📁</span>
+        <div>
+          <div style="font-size:1.15rem;font-weight:800;color:var(--text);" id="project-detail-title"></div>
+          <div style="font-size:0.78rem;color:var(--text-muted);" id="project-detail-meta"></div>
+        </div>
+      </div>
+      <hr class="divider" />
+      <div id="project-detail-loading" class="state-msg">Ładowanie…</div>
+      <div id="project-detail-feed" class="feed-stack"></div>
+    </div>
+
+  </section>
+
 </main>
 
 <script>
@@ -1054,6 +1167,7 @@
     geografia:   "🌍 Geografia",
     angielski:   "🇬🇧 Angielski",
     wf:          "🏃 WF",
+    inne:        "📌 Inne",
   };
 
   // ══════════════════════════════════════════
@@ -1111,19 +1225,20 @@
   // ══════════════════════════════════════════
   //  NAWIGACJA
   // ══════════════════════════════════════════
-  const PAGES = ["feed", "add", "profile", "ranking", "settings"];
+  const PAGES = ["feed", "add", "profile", "projects", "ranking", "settings"];
 
   function show(page) {
     PAGES.forEach(p => {
       document.getElementById(`page-${p}`).classList.toggle("hidden", p !== page);
     });
-    // Aktywna zakładka w nav
     document.querySelectorAll(".nav-btn").forEach((btn, i) => {
       btn.classList.toggle("active", PAGES[i] === page);
     });
     currentPage = page;
-    if (page === "profile") loadProfile();
-    if (page === "ranking") loadRanking();
+    if (page === "profile")  loadProfile();
+    if (page === "ranking")  loadRanking();
+    if (page === "projects") loadProjects();
+    if (page === "add")      populateProjectSelect();
   }
 
   // ══════════════════════════════════════════
@@ -1195,13 +1310,28 @@
     const result     = document.getElementById("proof-result").value.trim();
     const proof_link = document.getElementById("proof-link").value.trim();
     const category   = document.getElementById("proof-category").value;
+    const isProject  = document.getElementById("is-project").checked;
+    const existingProjectId = document.getElementById("proof-project-id").value || null;
 
     if (!title || !problem || !solution || !result)
       return showMsg("msg-proof", "Wypełnij pola: tytuł, problem, rozwiązanie i wynik.", "error");
 
+    // Utwórz nowy projekt jeśli zaznaczono
+    let projectId = existingProjectId;
+    if (isProject) {
+      const { data: proj, error: projErr } = await supabaseClient
+        .from("projects")
+        .insert([{ user_id: user.id, title }])
+        .select()
+        .single();
+      if (projErr) return showMsg("msg-proof", projErr.message, "error");
+      projectId = proj.id;
+    }
+
     const { error } = await supabaseClient.from("proofs").insert([{
       user_id: user.id, title, problem, solution, result, category,
       proof_link: proof_link || null,
+      project_id: projectId || null,
     }]);
 
     if (error) {
@@ -1213,6 +1343,9 @@
       addSection.addEventListener("animationend", () => addSection.classList.remove("pop"), { once: true });
       ["proof-title","proof-problem","proof-solution","proof-result","proof-link"]
         .forEach(id => { document.getElementById(id).value = ""; });
+      document.getElementById("is-project").checked = false;
+      document.getElementById("proof-project-id").value = "";
+      toggleProjectFields();
       await addXP(20);
       await loadProofs();
     }
@@ -1746,6 +1879,111 @@
     card.appendChild(commentsSection);
 
     return card;
+  }
+
+  // ══════════════════════════════════════════
+  //  PROJEKTY
+  // ══════════════════════════════════════════
+  function toggleProjectFields() {
+    const isChecked = document.getElementById("is-project").checked;
+    document.getElementById("existing-project-group")
+      .classList.toggle("hidden", isChecked);
+  }
+
+  async function populateProjectSelect() {
+    if (!user) return;
+    const select = document.getElementById("proof-project-id");
+    const { data } = await supabaseClient
+      .from("projects")
+      .select("id, title")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    select.innerHTML = '<option value="">— brak —</option>';
+    (data || []).forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `📁 ${p.title}`;
+      select.appendChild(opt);
+    });
+  }
+
+  async function loadProjects() {
+    if (!user) return;
+
+    const gridEl    = document.getElementById("projects-grid");
+    const loadingEl = document.getElementById("projects-loading");
+    const emptyEl   = document.getElementById("projects-empty");
+
+    gridEl.innerHTML = "";
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    // Pobierz projekty z liczbą proofów
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .select("*, proofs(count)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    loadingEl.classList.add("hidden");
+
+    if (error || !data || data.length === 0) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    data.forEach((project, i) => {
+      const proofCount = project.proofs?.[0]?.count || 0;
+      const card = document.createElement("div");
+      card.className = "project-card";
+      card.style.animationDelay = `${i * 40}ms`;
+      card.onclick = () => openProject(project.id, project.title, proofCount);
+      card.innerHTML = `
+        <div class="project-card-title">📁 ${escapeHtml(project.title)}</div>
+        <div class="project-card-meta">
+          <span>📄 ${proofCount} ${proofCount === 1 ? "proof" : "proofów"}</span>
+          <span>${new Date(project.created_at).toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" })}</span>
+        </div>
+      `;
+      gridEl.appendChild(card);
+    });
+  }
+
+  async function openProject(projectId, projectTitle, proofCount) {
+    document.getElementById("projects-list-view").classList.add("hidden");
+    const detailView = document.getElementById("project-detail-view");
+    detailView.classList.remove("hidden");
+
+    document.getElementById("project-detail-title").textContent = projectTitle;
+    document.getElementById("project-detail-meta").textContent =
+      `${proofCount} ${proofCount === 1 ? "proof" : "proofów"}`;
+    document.getElementById("project-detail-feed").innerHTML = "";
+
+    const loadingEl = document.getElementById("project-detail-loading");
+    loadingEl.classList.remove("hidden");
+
+    const { data, error } = await supabaseClient
+      .from("proofs")
+      .select("*, likes(count), comments(count)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false });
+
+    loadingEl.classList.add("hidden");
+
+    if (error || !data || data.length === 0) {
+      document.getElementById("project-detail-feed").innerHTML =
+        '<p class="state-msg">Brak proofów w tym projekcie.</p>';
+      return;
+    }
+
+    const feedEl = document.getElementById("project-detail-feed");
+    data.forEach(proof => feedEl.appendChild(createProofCard(proof, proof.user_id === user?.id)));
+  }
+
+  function backToProjects() {
+    document.getElementById("project-detail-view").classList.add("hidden");
+    document.getElementById("projects-list-view").classList.remove("hidden");
   }
 
   // ══════════════════════════════════════════
