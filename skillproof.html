@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkillProof</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Design tokens (light) ── */
+    :root {
+      --bg:          #f5f5f5;
+      --surface:     #ffffff;
+      --surface-2:   #fafafa;
+      --border:      #e0e0e0;
+      --border-2:    #ebebeb;
+      --text:        #1a1a1a;
+      --text-2:      #555;
+      --text-muted:  #aaa;
+      --accent:      #4f46e5;
+      --accent-bg:   #eef2ff;
+      --accent-hover:#4338ca;
+      --success-bg:  #f0fdf4;
+      --success-text:#166534;
+      --success-border:#bbf7d0;
+      --error-bg:    #fef2f2;
+      --error-text:  #991b1b;
+      --error-border:#fecaca;
+      --shadow-sm:   0 1px 3px rgba(0,0,0,.06);
+      --shadow-md:   0 4px 14px rgba(0,0,0,.08);
+      --shadow-lg:   0 10px 32px rgba(0,0,0,.10);
+      --transition:  0.18s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── Dark mode tokens ── */
+    body.dark {
+      --bg:          #0d0d0d;
+      --surface:     #161616;
+      --surface-2:   #1c1c1c;
+      --border:      #2a2a2a;
+      --border-2:    #242424;
+      --text:        #ededed;
+      --text-2:      #aaa;
+      --text-muted:  #555;
+      --accent:      #6366f1;
+      --accent-bg:   #1e1b4b;
+      --accent-hover:#818cf8;
+      --success-bg:  #052e16;
+      --success-text:#86efac;
+      --success-border:#14532d;
+      --error-bg:    #2d1515;
+      --error-text:  #fca5a5;
+      --error-border:#7f1d1d;
+      --shadow-sm:   0 1px 3px rgba(0,0,0,.4);
+      --shadow-md:   0 4px 14px rgba(0,0,0,.5);
+      --shadow-lg:   0 10px 32px rgba(0,0,0,.6);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    /* ── Loading ── */
+    #app-loading {
+      position: fixed; inset: 0;
+      background: var(--surface); z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: var(--text-muted);
+      transition: opacity 0.3s;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      transition: background var(--transition), border-color var(--transition);
+      box-shadow: var(--shadow-sm);
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+    header h1 span { color: var(--accent); }
+
+    #user-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: var(--text-2);
+    }
+
+    #header-xp {
+      background: var(--accent-bg);
+      color: var(--accent);
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      display: none;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    /* ── Dark mode toggle ── */
+    #btn-dark {
+      width: 36px; height: 20px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      background: var(--border);
+      transition: background var(--transition);
+      flex-shrink: 0;
+    }
+
+    #btn-dark::after {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--surface);
+      top: 3px; left: 3px;
+      transition: transform var(--transition), background var(--transition);
+      box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    }
+
+    body.dark #btn-dark { background: var(--accent); }
+    body.dark #btn-dark::after { transform: translateX(16px); }
+
+    /* ── Nav ── */
+    #main-nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: none;
+      padding: 0 16px;
+      overflow-x: auto;
+      transition: background var(--transition), border-color var(--transition);
+    }
+
+    #main-nav.visible { display: flex; }
+
+    .nav-btn {
+      padding: 10px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color var(--transition), border-color var(--transition);
+    }
+
+    .nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .nav-btn:hover  { color: var(--text); }
+
+    /* ── Layout ── */
+    main {
+      max-width: 720px;
+      margin: 28px auto;
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 24px;
+      transition: background var(--transition), border-color var(--transition),
+                  box-shadow var(--transition), transform var(--transition);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .card h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+    .card h3 { font-size: 0.95rem; font-weight: 700; margin: 18px 0 10px; color: var(--text-2); }
+
+    /* ── Auth tabs ── */
+    .tab-row {
+      display: flex;
+      margin-bottom: 18px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .tab {
+      padding: 7px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-muted);
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color var(--transition), border-color var(--transition);
+    }
+
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Forms ── */
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+
+    label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    input[type="text"], input[type="email"],
+    input[type="password"], input[type="url"], textarea {
+      width: 100%;
+      padding: 9px 13px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.93rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface-2);
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition),
+                  background var(--transition), color var(--transition);
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+      background: var(--surface);
+    }
+
+    textarea { resize: vertical; min-height: 75px; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.93rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition), transform 0.1s, box-shadow var(--transition);
+    }
+
+    .btn:hover  { box-shadow: var(--shadow-md); }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    .btn-sm {
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      transition: all var(--transition);
+    }
+
+    .btn-sm:hover {
+      background: var(--error-bg);
+      color: var(--error-text);
+      border-color: var(--error-border);
+    }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+    /* ── Messages ── */
+    .msg {
+      padding: 9px 13px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      margin-top: 10px;
+      display: none;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .msg.show    { display: block; }
+    .msg.success { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+    .msg.error   { background: var(--error-bg);   color: var(--error-text);   border: 1px solid var(--error-border); }
+
+    /* ── Section headings ── */
+    .section-heading {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Proof cards ── */
+    .proof-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      transition: box-shadow var(--transition), transform var(--transition),
+                  background var(--transition), border-color var(--transition);
+      box-shadow: var(--shadow-sm);
+      animation: fadeInUp 0.25s ease-out both;
+    }
+
+    .proof-card:hover {
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+    }
+
+    .proof-card .proof-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .proof-meta { font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: .5px; color: var(--text-muted); margin-bottom: 3px; }
+
+    .proof-text { font-size: 0.92rem; color: var(--text-2); margin-bottom: 10px; }
+
+    .proof-result-badge {
+      display: inline-block;
+      background: var(--success-bg); color: var(--success-text);
+      border: 1px solid var(--success-border);
+      border-radius: 6px;
+      padding: 3px 11px;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .proof-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-2);
+    }
+
+    .proof-date { font-size: 0.76rem; color: var(--text-muted); }
+
+    .proof-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .btn-like {
+      padding: 4px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      line-height: 0;
+      transition: background var(--transition), transform 0.12s;
+    }
+
+    .btn-like:hover  { background: var(--surface-2); }
+    .btn-like:active { transform: scale(0.88); }
+    .btn-like.liked  { background: var(--error-bg); border-color: var(--error-border); }
+
+    .like-icon {
+      display: block;
+      width: 36px; height: 36px;
+      background-image: url('resourcesSkillProof/like.png');
+      background-size: 200% auto;
+      background-repeat: no-repeat;
+      background-position: 0% center;
+    }
+
+    .like-icon.dislike { background-position: 100% center; }
+
+    .like-count { font-size: 0.83rem; color: var(--text-2); font-weight: 600; }
+
+    .proof-link {
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      padding: 4px 11px;
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      border-radius: 6px;
+      transition: background var(--transition);
+    }
+
+    .proof-link:hover { background: var(--accent-bg); }
+
+    .btn-delete {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      transition: all var(--transition);
+    }
+
+    .btn-delete:hover {
+      background: var(--error-bg);
+      color: var(--error-text);
+      border-color: var(--error-border);
+    }
+
+    /* ── Empty / loading states ── */
+    .state-msg {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.93rem;
+      padding: 28px 0;
+    }
+
+    /* ── Ranking list ── */
+    .rank-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      transition: background var(--transition), border-color var(--transition),
+                  transform var(--transition), box-shadow var(--transition);
+    }
+
+    .rank-item:hover { transform: translateX(3px); box-shadow: var(--shadow-sm); }
+
+    .rank-name {
+      font-weight: 700;
+      font-size: 0.93rem;
+      cursor: pointer;
+      color: var(--text);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .rank-stats { display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-2); }
+    .rank-score { font-weight: 700; color: var(--accent); }
+
+    /* ── Animations ── */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes popIn {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(0.95); }
+      100% { transform: scale(1); }
+    }
+
+    .pop { animation: popIn 0.15s ease-out; }
+
+    /* ── Helpers ── */
+    .hidden { display: none !important; }
+    hr.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 16px; }
+    .feed-stack { display: flex; flex-direction: column; gap: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="app-loading">Ładowanie aplikacji…</div>
+
+<!-- Header -->
+<header>
+  <h1>Skill<span>Proof</span></h1>
+  <div id="user-meta">
+    <span id="header-xp"></span>
+    <span id="header-email" style="font-size:0.83rem;color:var(--text-2);"></span>
+    <button id="btn-dark" onclick="toggleDarkMode()" title="Tryb ciemny"></button>
+    <button class="btn-sm hidden" id="btn-logout" onclick="logout()">Wyloguj</button>
+  </div>
+</header>
+
+<!-- Navigation (shown only when logged in) -->
+<nav id="main-nav">
+  <button class="nav-btn active" onclick="show('feed')">Feed</button>
+  <button class="nav-btn"        onclick="show('add')">+ Dodaj</button>
+  <button class="nav-btn"        onclick="show('profile')">Mój profil</button>
+  <button class="nav-btn"        onclick="show('ranking')">Ranking</button>
+  <button class="nav-btn"        onclick="show('settings')">Ustawienia</button>
+</nav>
+
+<main>
+
+  <!-- ── Auth ── -->
+  <section class="card" id="page-auth">
+    <div class="tab-row">
+      <button class="tab active" id="tab-login"    onclick="switchTab('login')">Logowanie</button>
+      <button class="tab"        id="tab-register" onclick="switchTab('register')">Rejestracja</button>
+    </div>
+
+    <div id="form-login">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="twoj@email.pl" />
+      </div>
+      <div class="form-group">
+        <label>Hasło</label>
+        <input type="password" id="login-password" placeholder="••••••••" />
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="login()">Zaloguj się</button>
+      </div>
+      <div class="msg" id="msg-login"></div>
+    </div>
+
+    <div id="form-register" class="hidden">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="twoj@email.pl" />
+      </div>
+      <div class="form-group">
+        <label>Hasło (min. 6 znaków)</label>
+        <input type="password" id="reg-password" placeholder="••••••••" />
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="signUp()">Zarejestruj się</button>
+      </div>
+      <div class="msg" id="msg-register"></div>
+    </div>
+  </section>
+
+  <!-- ── Add proof ── -->
+  <section class="card hidden" id="page-add">
+    <h2>Dodaj nowy Proof</h2>
+    <hr class="divider" />
+    <div class="form-group">
+      <label>Tytuł</label>
+      <input type="text" id="proof-title" placeholder="np. Zbudowałem własne API w 3 dni" />
+    </div>
+    <div class="form-group">
+      <label>Problem</label>
+      <textarea id="proof-problem" placeholder="Jaki problem chciałeś rozwiązać?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Rozwiązanie</label>
+      <textarea id="proof-solution" placeholder="Jak go rozwiązałeś?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Wynik</label>
+      <input type="text" id="proof-result" placeholder="np. API obsługuje 500 req/s" />
+    </div>
+    <div class="form-group">
+      <label>Link do dowodu (opcjonalnie)</label>
+      <input type="url" id="proof-link" placeholder="https://github.com/..." />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="addProof()">Opublikuj Proof</button>
+    </div>
+    <div class="msg" id="msg-proof"></div>
+  </section>
+
+  <!-- ── Feed ── -->
+  <section id="page-feed">
+    <p class="section-heading">Feed osiągnięć</p>
+    <div id="feed-loading" class="state-msg">Ładowanie…</div>
+    <div id="feed-empty"   class="state-msg hidden">Brak proofów. Bądź pierwszy!</div>
+    <div id="feed"         class="feed-stack"></div>
+  </section>
+
+  <!-- ── My profile ── -->
+  <section class="card hidden" id="page-profile">
+    <h2>👤 Mój profil</h2>
+    <div id="profile-info" style="font-size:0.88rem;color:#555;margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;"></div>
+    <hr class="divider" />
+    <h3>Moje Proofy</h3>
+    <div id="profile-loading" class="state-msg">Ładowanie…</div>
+    <div id="my-proofs" class="feed-stack"></div>
+  </section>
+
+  <!-- ── Settings ── -->
+  <section class="card hidden" id="page-settings">
+    <h2>⚙️ Ustawienia konta</h2>
+    <hr class="divider" />
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="new-username" placeholder="Twoja nazwa wyświetlana" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="updateUsername()">Zapisz</button>
+    </div>
+    <div class="msg" id="msg-settings"></div>
+  </section>
+
+  <!-- ── Ranking ── -->
+  <section class="card hidden" id="page-ranking">
+    <h2>🏆 Ranking użytkowników</h2>
+    <p style="font-size:0.78rem;color:#aaa;margin-top:-10px;margin-bottom:16px;">wynik = lajki × 2 + proofy</p>
+    <div id="ranking-loading" class="state-msg">Ładowanie…</div>
+    <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
+    <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:10px;"></ol>
+  </section>
+
+</main>
+
+<script>
+  // ══════════════════════════════════════════
+  //  KONFIGURACJA
+  // ══════════════════════════════════════════
+  const SUPABASE_URL      = "https://cwjixjemadedxpvloodm.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3aml4amVtYWRlZHhwdmxvb2RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NzMxMzcsImV4cCI6MjA5MjM0OTEzN30.tfo61x7iNfsfoNqZWCHeW1keyCFs9OHCJNvdrnJlxHM";
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ══════════════════════════════════════════
+  //  DARK MODE
+  // ══════════════════════════════════════════
+  function toggleDarkMode() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+  }
+
+  // Przywróć tryb z localStorage natychmiast (przed renderem)
+  if (localStorage.getItem("darkMode") === "true") document.body.classList.add("dark");
+
+  let user        = null;
+  let currentPage = "feed";
+  // Zbiór proof_id, które aktualny user już lajkował — uzupełniany w loadProofs()
+  let myLikedIds  = new Set();
+
+  // ══════════════════════════════════════════
+  //  INICJALIZACJA
+  // ══════════════════════════════════════════
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+  });
+
+  (async () => {
+    const { data } = await supabaseClient.auth.getSession();
+    if (data.session) setUser(data.session.user);
+    await loadProofs();
+    document.getElementById("app-loading").style.display = "none";
+  })();
+
+  // ══════════════════════════════════════════
+  //  STAN UI
+  // ══════════════════════════════════════════
+  function setUser(u) {
+    user = u;
+    const nav   = document.getElementById("main-nav");
+    const auth  = document.getElementById("page-auth");
+    const xpEl  = document.getElementById("header-xp");
+    const email = document.getElementById("header-email");
+    const logout = document.getElementById("btn-logout");
+
+    if (user) {
+      nav.classList.add("visible");
+      auth.classList.add("hidden");
+      logout.classList.remove("hidden");
+      email.textContent  = user.email;
+      xpEl.style.display = "inline-block";
+      // Załaduj XP asynchronicznie, nie blokuje UI
+      supabaseClient.from("profiles").select("xp, username")
+        .eq("id", user.id).single()
+        .then(({ data: p }) => {
+          updateXPDisplay(p?.xp || 0);
+          if (p?.username) {
+            const inp = document.getElementById("new-username");
+            if (inp) inp.value = p.username;
+          }
+        });
+    } else {
+      nav.classList.remove("visible");
+      auth.classList.remove("hidden");
+      logout.classList.add("hidden");
+      email.textContent  = "";
+      xpEl.style.display = "none";
+      xpEl.textContent   = "";
+      show("feed");
+    }
+  }
+
+  // ══════════════════════════════════════════
+  //  NAWIGACJA
+  // ══════════════════════════════════════════
+  const PAGES = ["feed", "add", "profile", "ranking", "settings"];
+
+  function show(page) {
+    PAGES.forEach(p => {
+      document.getElementById(`page-${p}`).classList.toggle("hidden", p !== page);
+    });
+    // Aktywna zakładka w nav
+    document.querySelectorAll(".nav-btn").forEach((btn, i) => {
+      btn.classList.toggle("active", PAGES[i] === page);
+    });
+    currentPage = page;
+    if (page === "profile") loadProfile();
+    if (page === "ranking") loadRanking();
+  }
+
+  // ══════════════════════════════════════════
+  //  AUTH TABS
+  // ══════════════════════════════════════════
+  function switchTab(tab) {
+    const isLogin = tab === "login";
+    document.getElementById("form-login").classList.toggle("hidden", !isLogin);
+    document.getElementById("form-register").classList.toggle("hidden", isLogin);
+    document.getElementById("tab-login").classList.toggle("active", isLogin);
+    document.getElementById("tab-register").classList.toggle("active", !isLogin);
+  }
+
+  // ══════════════════════════════════════════
+  //  REJESTRACJA
+  // ══════════════════════════════════════════
+  async function signUp() {
+    const email    = document.getElementById("reg-email").value.trim();
+    const password = document.getElementById("reg-password").value;
+    if (!email || !password) return showMsg("msg-register", "Wypełnij wszystkie pola.", "error");
+
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) {
+      showMsg("msg-register", error.message, "error");
+    } else {
+      showMsg("msg-register", "Rejestracja udana! Sprawdź email.", "success");
+      document.getElementById("reg-email").value = "";
+      document.getElementById("reg-password").value = "";
+    }
+  }
+
+  // ══════════════════════════════════════════
+  //  LOGOWANIE
+  // ══════════════════════════════════════════
+  async function login() {
+    const email    = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    if (!email || !password) return showMsg("msg-login", "Wypełnij wszystkie pola.", "error");
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showMsg("msg-login", error.message, "error");
+    } else {
+      setUser(data.user);
+      document.getElementById("login-email").value = "";
+      document.getElementById("login-password").value = "";
+    }
+  }
+
+  // ══════════════════════════════════════════
+  //  WYLOGOWANIE
+  // ══════════════════════════════════════════
+  async function logout() {
+    await supabaseClient.auth.signOut();
+    myLikedIds = new Set();
+    setUser(null);
+  }
+
+  // ══════════════════════════════════════════
+  //  DODAJ PROOF
+  // ══════════════════════════════════════════
+  async function addProof() {
+    if (!user) return alert("Musisz być zalogowany.");
+
+    const title      = document.getElementById("proof-title").value.trim();
+    const problem    = document.getElementById("proof-problem").value.trim();
+    const solution   = document.getElementById("proof-solution").value.trim();
+    const result     = document.getElementById("proof-result").value.trim();
+    const proof_link = document.getElementById("proof-link").value.trim();
+
+    if (!title || !problem || !solution || !result)
+      return showMsg("msg-proof", "Wypełnij pola: tytuł, problem, rozwiązanie i wynik.", "error");
+
+    const { error } = await supabaseClient.from("proofs").insert([{
+      user_id: user.id, title, problem, solution, result,
+      proof_link: proof_link || null,
+    }]);
+
+    if (error) {
+      showMsg("msg-proof", error.message, "error");
+    } else {
+      showMsg("msg-proof", "Proof opublikowany! +10 XP 🎉", "success");
+      const addSection = document.getElementById("page-add");
+      addSection.classList.add("pop");
+      addSection.addEventListener("animationend", () => addSection.classList.remove("pop"), { once: true });
+      ["proof-title","proof-problem","proof-solution","proof-result","proof-link"]
+        .forEach(id => { document.getElementById(id).value = ""; });
+      await addXP(10);
+      await loadProofs();
+    }
+  }
+
+  // ══════════════════════════════════════════
+  //  USUŃ PROOF
+  // ══════════════════════════════════════════
+  async function deleteProof(id) {
+    if (!confirm("Usunąć ten proof?")) return;
+
+    const { error } = await supabaseClient.from("proofs")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);   // RLS backup — user może usunąć tylko swoje
+
+    if (error) { alert(error.message); return; }
+    await loadProofs();
+    if (currentPage === "profile") loadProfile();
+  }
+
+  // ══════════════════════════════════════════
+  //  WCZYTAJ FEED
+  //  Optymalizacja: jeden request pobiera proofy
+  //  + liczbę lajków. Jeśli user zalogowany,
+  //  drugi równoległy request pobiera jego lajki
+  //  — dzięki temu przyciski od razu mają stan.
+  // ══════════════════════════════════════════
+  async function loadProofs() {
+    const feedEl    = document.getElementById("feed");
+    const loadingEl = document.getElementById("feed-loading");
+    const emptyEl   = document.getElementById("feed-empty");
+
+    feedEl.innerHTML = "";
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    // Uruchamiamy oba requesty równolegle
+    const proofReq = supabaseClient
+      .from("proofs")
+      .select("*, likes(count)")
+      .order("created_at", { ascending: false });
+
+    const likeReq = user
+      ? supabaseClient.from("likes").select("proof_id").eq("user_id", user.id)
+      : Promise.resolve({ data: [] });
+
+    const [{ data, error }, { data: liked }] = await Promise.all([proofReq, likeReq]);
+
+    loadingEl.classList.add("hidden");
+
+    if (error) { alert(error.message); return; }
+
+    // Zaktualizuj zbiór lajkowanych przez usera
+    myLikedIds = new Set((liked || []).map(l => l.proof_id));
+
+    if (!data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
+
+    data.forEach((proof, i) => {
+      const card = createProofCard(proof, false);
+      card.style.animationDelay = `${i * 40}ms`;
+      feedEl.appendChild(card);
+    });
+  }
+
+  // ══════════════════════════════════════════
+  //  TOGGLE LIKE
+  //  Stan lajka znamy już przy renderze karty
+  //  (myLikedIds), więc nie potrzebujemy SELECT
+  //  — od razu DELETE lub INSERT.
+  // ══════════════════════════════════════════
+  async function toggleLike(proofId) {
+    if (!user) return alert("Zaloguj się, aby lajkować.");
+
+    const alreadyLiked = myLikedIds.has(proofId);
+
+    // Optymistyczna aktualizacja UI przed odpowiedzią serwera
+    const btn       = document.querySelector(`[data-like-btn="${proofId}"]`);
+    const countEl   = document.querySelector(`[data-like-count="${proofId}"]`);
+    const prevCount = parseInt(countEl?.textContent || "0");
+
+    const icon = btn?.querySelector(".like-icon");
+
+    if (alreadyLiked) {
+      myLikedIds.delete(proofId);
+      btn?.classList.remove("liked");
+      icon?.classList.remove("dislike");
+      if (btn) btn.title = "Lubię to";
+      if (countEl) countEl.textContent = Math.max(0, prevCount - 1);
+    } else {
+      myLikedIds.add(proofId);
+      btn?.classList.add("liked");
+      icon?.classList.add("dislike");
+      if (btn) btn.title = "Cofnij lajk";
+      if (countEl) countEl.textContent = prevCount + 1;
+    }
+
+    // Wyślij do bazy
+    if (alreadyLiked) {
+      await supabaseClient.from("likes")
+        .delete().eq("user_id", user.id).eq("proof_id", proofId);
+    } else {
+      await supabaseClient.from("likes")
+        .insert([{ user_id: user.id, proof_id: proofId }]);
+    }
+  }
+
+  // ══════════════════════════════════════════
+  //  PROFIL (własny)
+  // ══════════════════════════════════════════
+  async function loadProfile() {
+    if (!user) return;
+
+    const infoEl    = document.getElementById("profile-info");
+    const containerEl = document.getElementById("my-proofs");
+    const loadingEl = document.getElementById("profile-loading");
+
+    containerEl.innerHTML = "";
+    loadingEl.classList.remove("hidden");
+
+    const { data, error } = await supabaseClient
+      .from("proofs")
+      .select("*, likes(count)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    loadingEl.classList.add("hidden");
+
+    if (error) { alert(error.message); return; }
+
+    const totalLikes = (data || []).reduce((s, p) => s + (p.likes[0]?.count || 0), 0);
+    infoEl.innerHTML = `
+      <span>📧 ${escapeHtml(user.email)}</span>
+      <span>📄 Proofów: <strong>${data?.length || 0}</strong></span>
+      <span>❤️ Lajków: <strong>${totalLikes}</strong></span>
+    `;
+
+    if (!data || data.length === 0) {
+      containerEl.innerHTML = '<p class="state-msg">Nie masz jeszcze żadnych proofów.</p>';
+      return;
+    }
+
+    data.forEach(proof => containerEl.appendChild(createProofCard(proof, true)));
+  }
+
+  // ══════════════════════════════════════════
+  //  USTAWIENIA — zmiana username
+  // ══════════════════════════════════════════
+  async function updateUsername() {
+    if (!user) return;
+    const username = document.getElementById("new-username").value.trim();
+    if (!username) return showMsg("msg-settings", "Wpisz nazwę.", "error");
+
+    const { error } = await supabaseClient
+      .from("profiles")
+      .update({ username })
+      .eq("id", user.id);
+
+    if (error) showMsg("msg-settings", error.message, "error");
+    else       showMsg("msg-settings", "Zapisano!", "success");
+  }
+
+  // ══════════════════════════════════════════
+  //  RANKING
+  // ══════════════════════════════════════════
+  async function loadRanking() {
+    const listEl    = document.getElementById("ranking");
+    const loadingEl = document.getElementById("ranking-loading");
+    const emptyEl   = document.getElementById("ranking-empty");
+
+    listEl.innerHTML = "";
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("id, username, proofs(count), likes(count)");
+
+    loadingEl.classList.add("hidden");
+
+    if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
+
+    const medals  = ["🥇","🥈","🥉"];
+    const ranked  = data
+      .map(p => ({
+        id:       p.id,
+        username: p.username || p.id.slice(0, 8),
+        proofs:   p.proofs[0]?.count || 0,
+        likes:    p.likes[0]?.count  || 0,
+        score:    (p.likes[0]?.count || 0) * 2 + (p.proofs[0]?.count || 0),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    ranked.forEach((entry, i) => {
+      const li = document.createElement("li");
+      li.className = "rank-item";
+      li.innerHTML = `
+        <span class="rank-name" onclick="showPublicProfile('${entry.id}', '${escapeHtml(entry.username)}')">
+          ${medals[i] ?? `#${i + 1}`} ${escapeHtml(entry.username)}
+        </span>
+        <span class="rank-stats">
+          <span>📄 ${entry.proofs}</span>
+          <span>❤️ ${entry.likes}</span>
+          <span class="rank-score">★ ${entry.score}</span>
+        </span>
+      `;
+      listEl.appendChild(li);
+    });
+  }
+
+  // ══════════════════════════════════════════
+  //  PUBLICZNY PROFIL (z rankingu)
+  // ══════════════════════════════════════════
+  async function showPublicProfile(userId, username) {
+    // Tymczasowo zastąp sekcję rankingu widokiem profilu
+    const rankSection = document.getElementById("page-ranking");
+    rankSection.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:0.85rem;"
+                onclick="show('ranking')">← Wróć</button>
+        <h2 style="margin:0;">👤 ${escapeHtml(username)}</h2>
+      </div>
+      <div id="pub-stats" style="font-size:0.88rem;color:#555;margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;"></div>
+      <p id="pub-loading" class="state-msg">Ładowanie…</p>
+      <div id="pub-feed" class="feed-stack"></div>
+    `;
+
+    const { data, error } = await supabaseClient
+      .from("proofs")
+      .select("*, likes(count)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    document.getElementById("pub-loading")?.remove();
+
+    if (error || !data || data.length === 0) {
+      rankSection.insertAdjacentHTML("beforeend", '<p class="state-msg">Brak proofów.</p>');
+      return;
+    }
+
+    const totalLikes = data.reduce((s, p) => s + (p.likes[0]?.count || 0), 0);
+    document.getElementById("pub-stats").innerHTML = `
+      <span>📄 Proofów: <strong>${data.length}</strong></span>
+      <span>❤️ Lajków: <strong>${totalLikes}</strong></span>
+      <span style="color:#4f46e5;">★ Wynik: <strong>${totalLikes * 2 + data.length}</strong></span>
+    `;
+
+    const feedEl = document.getElementById("pub-feed");
+    data.forEach(proof => feedEl.appendChild(createProofCard(proof, false)));
+  }
+
+  // ══════════════════════════════════════════
+  //  XP I LEVELE
+  // ══════════════════════════════════════════
+  async function addXP(amount) {
+    const { data: p } = await supabaseClient
+      .from("profiles").select("xp").eq("id", user.id).single();
+    const newXP = (p?.xp || 0) + amount;
+    await supabaseClient.from("profiles").update({ xp: newXP }).eq("id", user.id);
+    updateXPDisplay(newXP);
+  }
+
+  function updateXPDisplay(xp) {
+    const el = document.getElementById("header-xp");
+    if (!el) return;
+    el.textContent = `Lv.${Math.floor(xp / 100)} · ${xp % 100}/100 XP`;
+  }
+
+  // ══════════════════════════════════════════
+  //  BUDUJ KARTĘ PROOFA
+  //  isOwn=true → pokazuje przycisk usuwania
+  // ══════════════════════════════════════════
+  function createProofCard(proof, isOwn) {
+    const card = document.createElement("article");
+    card.className = "proof-card";
+
+    const date  = new Date(proof.created_at).toLocaleDateString("pl-PL",
+      { day: "numeric", month: "long", year: "numeric" });
+    const count = proof.likes?.[0]?.count || 0;
+    const liked = myLikedIds.has(proof.id);
+
+    const linkHtml = proof.proof_link
+      ? `<a class="proof-link" href="${escapeHtml(proof.proof_link)}" target="_blank" rel="noopener noreferrer">Dowód →</a>`
+      : "";
+
+    const deleteBtn = isOwn
+      ? `<button class="btn-delete" onclick="deleteProof('${proof.id}')">🗑 Usuń</button>`
+      : "";
+
+    card.innerHTML = `
+      <div class="proof-title">${escapeHtml(proof.title)}</div>
+      <p class="proof-meta">Problem</p>
+      <p class="proof-text">${escapeHtml(proof.problem)}</p>
+      <p class="proof-meta">Rozwiązanie</p>
+      <p class="proof-text">${escapeHtml(proof.solution)}</p>
+      <p class="proof-meta">Wynik</p>
+      <span class="proof-result-badge">${escapeHtml(proof.result)}</span>
+      <div class="proof-footer">
+        <span class="proof-date">${date}</span>
+        <div class="proof-actions">
+          ${linkHtml}
+          <button class="btn-like${liked ? " liked" : ""}"
+                  data-like-btn="${proof.id}"
+                  title="${liked ? "Cofnij lajk" : "Lubię to"}"
+                  onclick="toggleLike('${proof.id}')">
+            <span class="like-icon${liked ? " dislike" : ""}"></span>
+          </button>
+          <span class="like-count" data-like-count="${proof.id}">${count}</span>
+          ${deleteBtn}
+        </div>
+      </div>
+    `;
+
+    return card;
+  }
+
+  // ══════════════════════════════════════════
+  //  HELPERS
+  // ══════════════════════════════════════════
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className   = `msg show ${type}`;
+    setTimeout(() => { el.className = "msg"; }, 5000);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g,  "&amp;")
+      .replace(/</g,  "&lt;")
+      .replace(/>/g,  "&gt;")
+      .replace(/"/g,  "&quot;")
+      .replace(/'/g,  "&#039;");
+  }
+</script>
+</body>
+</html>
