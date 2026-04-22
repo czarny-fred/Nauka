@@ -782,14 +782,31 @@
 
   <!-- ── Ranking ── -->
   <section class="card hidden" id="page-ranking">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <h2 style="margin:0;">🏆 Leaderboard</h2>
-      <span id="ranking-updated" style="font-size:0.75rem;color:var(--text-muted);"></span>
+
+    <!-- Widok: lista rankingu -->
+    <div id="ranking-view">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <h2 style="margin:0;">🏆 Leaderboard</h2>
+        <span id="ranking-updated" style="font-size:0.75rem;color:var(--text-muted);"></span>
+      </div>
+      <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:18px;">wynik = lajki × 2 + proofy × 5</p>
+      <div id="ranking-loading" class="state-msg">Ładowanie…</div>
+      <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
+      <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
     </div>
-    <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:18px;">wynik = lajki × 2 + proofy × 5</p>
-    <div id="ranking-loading" class="state-msg">Ładowanie…</div>
-    <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
-    <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+
+    <!-- Widok: publiczny profil gracza -->
+    <div id="pub-profile-view" class="hidden">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:0.85rem;"
+                onclick="backToRanking()">← Wróć</button>
+        <h2 style="margin:0;" id="pub-profile-title"></h2>
+      </div>
+      <div id="pub-stats" style="font-size:0.88rem;color:var(--text-2);margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;"></div>
+      <div id="pub-loading" class="state-msg">Ładowanie…</div>
+      <div id="pub-feed" class="feed-stack"></div>
+    </div>
+
   </section>
 
 </main>
@@ -1261,18 +1278,15 @@
   //  PUBLICZNY PROFIL (z rankingu)
   // ══════════════════════════════════════════
   async function showPublicProfile(userId, username) {
-    // Tymczasowo zastąp sekcję rankingu widokiem profilu
-    const rankSection = document.getElementById("page-ranking");
-    rankSection.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
-        <button class="btn btn-secondary" style="padding:6px 14px;font-size:0.85rem;"
-                onclick="show('ranking')">← Wróć</button>
-        <h2 style="margin:0;">👤 ${escapeHtml(username)}</h2>
-      </div>
-      <div id="pub-stats" style="font-size:0.88rem;color:#555;margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;"></div>
-      <p id="pub-loading" class="state-msg">Ładowanie…</p>
-      <div id="pub-feed" class="feed-stack"></div>
-    `;
+    document.getElementById("ranking-view").classList.add("hidden");
+    const pubView = document.getElementById("pub-profile-view");
+    pubView.classList.remove("hidden");
+
+    document.getElementById("pub-profile-title").textContent = `👤 ${username}`;
+    document.getElementById("pub-feed").innerHTML = "";
+    document.getElementById("pub-stats").innerHTML = "";
+    const loadingEl = document.getElementById("pub-loading");
+    loadingEl.classList.remove("hidden");
 
     const { data, error } = await supabaseClient
       .from("proofs")
@@ -1280,10 +1294,10 @@
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    document.getElementById("pub-loading")?.remove();
+    loadingEl.classList.add("hidden");
 
     if (error || !data || data.length === 0) {
-      rankSection.insertAdjacentHTML("beforeend", '<p class="state-msg">Brak proofów.</p>');
+      document.getElementById("pub-feed").innerHTML = '<p class="state-msg">Brak proofów.</p>';
       return;
     }
 
@@ -1296,6 +1310,11 @@
 
     const feedEl = document.getElementById("pub-feed");
     data.forEach(proof => feedEl.appendChild(createProofCard(proof, false)));
+  }
+
+  function backToRanking() {
+    document.getElementById("pub-profile-view").classList.add("hidden");
+    document.getElementById("ranking-view").classList.remove("hidden");
   }
 
   // ══════════════════════════════════════════
