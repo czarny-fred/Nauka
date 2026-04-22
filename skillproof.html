@@ -226,6 +226,31 @@
       letter-spacing: 0.4px;
     }
 
+    select {
+      width: 100%;
+      padding: 9px 13px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.93rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface-2);
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23aaa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 13px center;
+      transition: border-color var(--transition), box-shadow var(--transition),
+                  background-color var(--transition), color var(--transition);
+    }
+
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+      background-color: var(--surface);
+    }
+
     input[type="text"], input[type="email"],
     input[type="password"], input[type="url"], textarea {
       width: 100%;
@@ -626,6 +651,47 @@
     hr.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 16px; }
     .feed-stack { display: flex; flex-direction: column; gap: 14px; }
 
+    /* ── Category badge on proof cards ── */
+    .proof-category {
+      display: inline-block;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 20px;
+      padding: 2px 10px;
+      margin-bottom: 10px;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+
+    /* ── Feed filter row ── */
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .btn-filter {
+      padding: 5px 13px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all var(--transition);
+    }
+
+    .btn-filter:hover  { border-color: var(--accent); color: var(--accent); }
+    .btn-filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
     /* ── Featured card ── */
     .featured-card {
       background: var(--surface);
@@ -820,6 +886,21 @@
       <input type="text" id="proof-result" placeholder="np. API obsługuje 500 req/s" />
     </div>
     <div class="form-group">
+      <label>Kategoria</label>
+      <select id="proof-category">
+        <option value="matematyka">🔢 Matematyka</option>
+        <option value="polski">📝 J. Polski</option>
+        <option value="historia">🏛️ Historia</option>
+        <option value="biologia">🧬 Biologia</option>
+        <option value="chemia">⚗️ Chemia</option>
+        <option value="fizyka">⚡ Fizyka</option>
+        <option value="informatyka">💻 Informatyka</option>
+        <option value="geografia">🌍 Geografia</option>
+        <option value="angielski">🇬🇧 Angielski</option>
+        <option value="wf">🏃 WF</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>Link do dowodu (opcjonalnie)</label>
       <input type="url" id="proof-link" placeholder="https://github.com/..." />
     </div>
@@ -833,6 +914,19 @@
   <section id="page-feed">
     <div id="featured-section" class="hidden"></div>
     <p class="section-heading">Feed osiągnięć</p>
+    <div class="filter-row" id="filter-row">
+      <button class="btn-filter active" onclick="filterFeed('all')">🔥 Wszystkie</button>
+      <button class="btn-filter" onclick="filterFeed('matematyka')">🔢 Matematyka</button>
+      <button class="btn-filter" onclick="filterFeed('polski')">📝 J. Polski</button>
+      <button class="btn-filter" onclick="filterFeed('historia')">🏛️ Historia</button>
+      <button class="btn-filter" onclick="filterFeed('biologia')">🧬 Biologia</button>
+      <button class="btn-filter" onclick="filterFeed('chemia')">⚗️ Chemia</button>
+      <button class="btn-filter" onclick="filterFeed('fizyka')">⚡ Fizyka</button>
+      <button class="btn-filter" onclick="filterFeed('informatyka')">💻 Informatyka</button>
+      <button class="btn-filter" onclick="filterFeed('geografia')">🌍 Geografia</button>
+      <button class="btn-filter" onclick="filterFeed('angielski')">🇬🇧 Angielski</button>
+      <button class="btn-filter" onclick="filterFeed('wf')">🏃 WF</button>
+    </div>
     <div id="feed-loading" class="state-msg">Ładowanie…</div>
     <div id="feed-empty"   class="state-msg hidden">Brak proofów. Bądź pierwszy!</div>
     <div id="feed"         class="feed-stack"></div>
@@ -944,8 +1038,23 @@
 
   let user           = null;
   let currentPage    = "feed";
+  let currentFilter  = "all";
+  let allProofs      = [];          // kopia całego feeda do filtrowania
   let myLikedIds     = new Set();   // proof_id lajkowane przez usera
   let myFollowingIds = new Set();   // user_id obserwowanych przez usera
+
+  const CATEGORIES = {
+    matematyka:  "🔢 Matematyka",
+    polski:      "📝 J. Polski",
+    historia:    "🏛️ Historia",
+    biologia:    "🧬 Biologia",
+    chemia:      "⚗️ Chemia",
+    fizyka:      "⚡ Fizyka",
+    informatyka: "💻 Informatyka",
+    geografia:   "🌍 Geografia",
+    angielski:   "🇬🇧 Angielski",
+    wf:          "🏃 WF",
+  };
 
   // ══════════════════════════════════════════
   //  INICJALIZACJA
@@ -1085,12 +1194,13 @@
     const solution   = document.getElementById("proof-solution").value.trim();
     const result     = document.getElementById("proof-result").value.trim();
     const proof_link = document.getElementById("proof-link").value.trim();
+    const category   = document.getElementById("proof-category").value;
 
     if (!title || !problem || !solution || !result)
       return showMsg("msg-proof", "Wypełnij pola: tytuł, problem, rozwiązanie i wynik.", "error");
 
     const { error } = await supabaseClient.from("proofs").insert([{
-      user_id: user.id, title, problem, solution, result,
+      user_id: user.id, title, problem, solution, result, category,
       proof_link: proof_link || null,
     }]);
 
@@ -1183,13 +1293,15 @@
       return { ...p, _score: score };
     }).sort((a, b) => b._score - a._score);
 
-    renderFeed(scored);
+    allProofs = scored;
+    renderFeed(currentFilter === "all" ? allProofs : allProofs.filter(p => p.category === currentFilter));
   }
 
   function renderFeed(data) {
     const feedEl  = document.getElementById("feed");
     const emptyEl = document.getElementById("feed-empty");
     feedEl.innerHTML = "";
+    emptyEl.classList.add("hidden");
 
     if (!data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
@@ -1198,6 +1310,25 @@
       card.style.animationDelay = `${i * 40}ms`;
       feedEl.appendChild(card);
     });
+  }
+
+  // ══════════════════════════════════════════
+  //  FILTR KATEGORII
+  // ══════════════════════════════════════════
+  function filterFeed(category) {
+    currentFilter = category;
+
+    // Aktualizacja aktywnego przycisku
+    document.querySelectorAll("#filter-row .btn-filter").forEach(btn => {
+      const onclick = btn.getAttribute("onclick");
+      btn.classList.toggle("active", onclick === `filterFeed('${category}')`);
+    });
+
+    const toRender = category === "all"
+      ? allProofs
+      : allProofs.filter(p => p.category === category);
+
+    renderFeed(toRender);
   }
 
   // ══════════════════════════════════════════
@@ -1562,8 +1693,11 @@
       ? `<button class="btn-delete" onclick="deleteProof('${proof.id}')">🗑 Usuń</button>`
       : "";
 
+    const categoryLabel = proof.category ? (CATEGORIES[proof.category] || proof.category) : null;
+
     card.innerHTML = `
       <div class="proof-title">${escapeHtml(proof.title)}</div>
+      ${categoryLabel ? `<span class="proof-category">${escapeHtml(categoryLabel)}</span>` : ""}
       <p class="proof-meta">Problem</p>
       <p class="proof-text">${escapeHtml(proof.problem)}</p>
       <p class="proof-meta">Rozwiązanie</p>
