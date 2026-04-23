@@ -1343,14 +1343,32 @@
 
     <!-- Widok: lista rankingu -->
     <div id="ranking-view">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
         <h2 style="margin:0;">🏆 Leaderboard</h2>
         <span id="ranking-updated" style="font-size:0.75rem;color:var(--text-muted);"></span>
       </div>
-      <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:18px;">wynik = lajki × 2 + proofy × 5</p>
-      <div id="ranking-loading" class="state-msg">Ładowanie…</div>
-      <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
-      <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+
+      <!-- Tabs -->
+      <div class="tab-row" style="margin-bottom:16px;">
+        <button class="tab active" id="rank-tab-users"    onclick="switchRankingTab('users')">Uczniowie</button>
+        <button class="tab"        id="rank-tab-projects" onclick="switchRankingTab('projects')">Projekty</button>
+      </div>
+
+      <!-- Panel: uczniowie -->
+      <div id="ranking-users-panel">
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">wynik = lajki × 2 + proofy × 5</p>
+        <div id="ranking-loading" class="state-msg">Ładowanie…</div>
+        <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
+        <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+      </div>
+
+      <!-- Panel: projekty -->
+      <div id="ranking-projects-panel" class="hidden">
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">wynik = etapy × 10 + ocena × 5</p>
+        <div id="proj-ranking-loading" class="state-msg">Ładowanie…</div>
+        <div id="proj-ranking-empty"   class="state-msg hidden">Brak projektów z etapami.</div>
+        <ol id="proj-ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+      </div>
     </div>
 
     <!-- Widok: publiczny profil gracza -->
@@ -2075,8 +2093,84 @@
       listEl.appendChild(li);
     });
 
-    // Znacznik czasu ostatniej aktualizacji
     if (updatedEl) updatedEl.textContent = `aktualizacja: ${new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  function switchRankingTab(tab) {
+    const isUsers = tab === "users";
+    document.getElementById("ranking-users-panel").classList.toggle("hidden", !isUsers);
+    document.getElementById("ranking-projects-panel").classList.toggle("hidden", isUsers);
+    document.getElementById("rank-tab-users").classList.toggle("active", isUsers);
+    document.getElementById("rank-tab-projects").classList.toggle("active", !isUsers);
+    if (!isUsers) loadTopProjects();
+  }
+
+  async function loadTopProjects() {
+    const listEl    = document.getElementById("proj-ranking");
+    const loadingEl = document.getElementById("proj-ranking-loading");
+    const emptyEl   = document.getElementById("proj-ranking-empty");
+
+    if (listEl.children.length > 0) return; // już załadowane
+
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .select("id, title, subject, grade, status, user_id, proofs(count)");
+
+    loadingEl.classList.add("hidden");
+
+    if (error || !data) { emptyEl.classList.remove("hidden"); return; }
+
+    // Pobierz nazwy autorów jednym requestem
+    const authorIds = [...new Set(data.map(p => p.user_id))];
+    const { data: profiles } = await supabaseClient
+      .from("profiles").select("id, username, avatar_url").in("id", authorIds);
+    const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+    const medals = ["🥇", "🥈", "🥉"];
+
+    const scored = data
+      .map(p => ({
+        ...p,
+        proofCount:  p.proofs?.[0]?.count || 0,
+        authorName:  profileMap.get(p.user_id)?.username || p.user_id?.slice(0, 8) || "?",
+        score:       (p.proofs?.[0]?.count || 0) * 10 + (p.grade || 0) * 5,
+      }))
+      .filter(p => p.proofCount > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+
+    if (scored.length === 0) { emptyEl.classList.remove("hidden"); return; }
+
+    const subjectLabel = s => s ? (CATEGORIES[s] || s) : null;
+
+    scored.forEach((p, i) => {
+      const medal = medals[i] ?? `<span style="color:var(--text-muted)">#${i + 1}</span>`;
+      const isFinished = p.status === "finished";
+      const subj = subjectLabel(p.subject);
+
+      const li = document.createElement("li");
+      li.className = "rank-item";
+      li.innerHTML = `
+        <span class="rank-pos">${medal}</span>
+        <div class="rank-info" style="flex:1;min-width:0;">
+          <div class="rank-name">${escapeHtml(p.title)}</div>
+          <div class="rank-sub">
+            ${subj ? `${escapeHtml(subj)} &nbsp;·&nbsp; ` : ""}
+            ${escapeHtml(p.authorName)} &nbsp;·&nbsp;
+            ${p.proofCount} ${p.proofCount === 1 ? "etap" : "etapów"}
+            ${p.grade != null ? `&nbsp;·&nbsp; ocena: <strong>${p.grade}</strong>` : ""}
+          </div>
+        </div>
+        <div class="rank-score-box">
+          <span class="rank-score">${p.score}</span>
+          <span class="rank-score-label">punktów</span>
+        </div>
+      `;
+      listEl.appendChild(li);
+    });
   }
 
   // ══════════════════════════════════════════
