@@ -651,6 +651,116 @@
     hr.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 16px; }
     .feed-stack { display: flex; flex-direction: column; gap: 14px; }
 
+    /* ── Proof image upload area ── */
+    .proof-image-upload {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      background: var(--surface-2);
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      margin-bottom: 14px;
+    }
+
+    .proof-image-upload:hover { border-color: var(--accent); background: var(--accent-bg); }
+    .proof-image-upload input[type="file"] { display: none; }
+
+    .proof-image-thumb {
+      width: 64px; height: 64px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: border-color var(--transition);
+    }
+
+    .proof-image-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+    .proof-image-thumb.has-image { border-color: var(--accent); }
+
+    .proof-image-upload-text { font-size: 0.88rem; color: var(--text-2); }
+    .proof-image-upload-text strong { display: block; font-size: 0.92rem; color: var(--text); margin-bottom: 2px; }
+
+    /* ── Proof card image ── */
+    .proof-card-img-wrap {
+      margin: -20px -22px 16px;
+      border-radius: 14px 14px 0 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .proof-card-img-wrap img {
+      width: 100%;
+      height: 240px;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.3s ease, opacity var(--transition);
+      cursor: zoom-in;
+    }
+
+    .proof-card-img-wrap:hover img { transform: scale(1.02); opacity: 0.95; }
+
+    .proof-card-img-wrap::after {
+      content: '🔍';
+      position: absolute;
+      bottom: 10px; right: 12px;
+      background: rgba(0,0,0,.5);
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 20px;
+      opacity: 0;
+      transition: opacity var(--transition);
+      pointer-events: none;
+    }
+
+    .proof-card-img-wrap:hover::after { opacity: 1; }
+
+    /* ── Lightbox ── */
+    #lightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.90);
+      z-index: 9998;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      cursor: zoom-out;
+      animation: fadeIn 0.18s ease-out;
+    }
+
+    #lightbox.open { display: flex; }
+
+    #lightbox img {
+      max-width: 100%;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    }
+
+    #lightbox-close {
+      position: fixed;
+      top: 18px; right: 20px;
+      background: rgba(255,255,255,.12);
+      border: none;
+      color: #fff;
+      font-size: 1.3rem;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+
+    #lightbox-close:hover { background: rgba(255,255,255,.22); }
+
     /* ── Category badge on proof cards ── */
     .proof-category {
       display: inline-block;
@@ -873,6 +983,12 @@
 <!-- Loading overlay -->
 <div id="app-loading">Ładowanie aplikacji…</div>
 
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="" />
+</div>
+
 <!-- Header -->
 <header>
   <h1>Skill<span>Proof</span></h1>
@@ -974,11 +1090,22 @@
       <label>Link do dowodu (opcjonalnie)</label>
       <input type="url" id="proof-link" placeholder="https://github.com/..." />
     </div>
+    <div class="form-group">
+      <label>Zdjęcie (opcjonalnie)</label>
+      <label class="proof-image-upload" for="proof-image-input">
+        <div class="proof-image-thumb" id="proof-image-thumb">🖼️</div>
+        <div class="proof-image-upload-text">
+          <strong>Kliknij, aby dodać zdjęcie</strong>
+          JPG, PNG, WebP — maks. 5 MB
+        </div>
+        <input type="file" id="proof-image-input" accept="image/*" onchange="previewProofImage(event)" />
+      </label>
+    </div>
     <hr class="divider" />
     <div class="form-group">
       <label class="checkbox-label">
         <input type="checkbox" id="is-project" onchange="toggleProjectFields()" />
-        📁 Utwórz nowy projekt z tego proofa
+        📁 projekt
       </label>
     </div>
     <div id="existing-project-group" class="form-group">
@@ -1316,6 +1443,16 @@
     if (!title || !problem || !solution || !result)
       return showMsg("msg-proof", "Wypełnij pola: tytuł, problem, rozwiązanie i wynik.", "error");
 
+    // Upload zdjęcia
+    const imageFile = document.getElementById("proof-image-input").files[0];
+    let image_url = null;
+    if (imageFile) {
+      if (imageFile.size > 5 * 1024 * 1024)
+        return showMsg("msg-proof", "Zdjęcie za duże (maks. 5 MB).", "error");
+      image_url = await uploadProofImage(imageFile);
+      if (image_url === null) return; // błąd już pokazany w uploadProofImage
+    }
+
     // Utwórz nowy projekt jeśli zaznaczono
     let projectId = existingProjectId;
     if (isProject) {
@@ -1332,6 +1469,7 @@
       user_id: user.id, title, problem, solution, result, category,
       proof_link: proof_link || null,
       project_id: projectId || null,
+      image_url: image_url || null,
     }]);
 
     if (error) {
@@ -1345,6 +1483,9 @@
         .forEach(id => { document.getElementById(id).value = ""; });
       document.getElementById("is-project").checked = false;
       document.getElementById("proof-project-id").value = "";
+      document.getElementById("proof-image-input").value = "";
+      document.getElementById("proof-image-thumb").innerHTML = "🖼️";
+      document.getElementById("proof-image-thumb").classList.remove("has-image");
       toggleProjectFields();
       await addXP(20);
       await loadProofs();
@@ -1827,8 +1968,15 @@
       : "";
 
     const categoryLabel = proof.category ? (CATEGORIES[proof.category] || proof.category) : null;
+    const imgHtml = proof.image_url
+      ? `<div class="proof-card-img-wrap">
+           <img src="${escapeHtml(proof.image_url)}" alt="${escapeHtml(proof.title)}"
+                loading="lazy" onclick="openLightbox('${escapeHtml(proof.image_url)}')" />
+         </div>`
+      : "";
 
     card.innerHTML = `
+      ${imgHtml}
       <div class="proof-title">${escapeHtml(proof.title)}</div>
       ${categoryLabel ? `<span class="proof-category">${escapeHtml(categoryLabel)}</span>` : ""}
       <p class="proof-meta">Problem</p>
@@ -1985,6 +2133,50 @@
     document.getElementById("project-detail-view").classList.add("hidden");
     document.getElementById("projects-list-view").classList.remove("hidden");
   }
+
+  // ══════════════════════════════════════════
+  //  ZDJĘCIA PROOFÓW
+  // ══════════════════════════════════════════
+  function previewProofImage(event) {
+    const file  = event.target.files[0];
+    if (!file) return;
+    const thumb = document.getElementById("proof-image-thumb");
+    const url   = URL.createObjectURL(file);
+    thumb.innerHTML = `<img src="${url}" alt="podgląd" />`;
+    thumb.classList.add("has-image");
+  }
+
+  async function uploadProofImage(file) {
+    const ext  = file.name.split(".").pop().toLowerCase();
+    const path = `${user.id}/${Date.now()}.${ext}`;
+
+    const { error } = await supabaseClient.storage
+      .from("proof-images")
+      .upload(path, file, { upsert: false });
+
+    if (error) {
+      showMsg("msg-proof", `Błąd uploadu zdjęcia: ${error.message}`, "error");
+      return null;
+    }
+
+    const { data } = supabaseClient.storage.from("proof-images").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  function openLightbox(url) {
+    const lb = document.getElementById("lightbox");
+    document.getElementById("lightbox-img").src = url;
+    lb.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    document.getElementById("lightbox").classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  // Zamknij lightbox klawiszem Escape
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
 
   // ══════════════════════════════════════════
   //  KOMENTARZE
