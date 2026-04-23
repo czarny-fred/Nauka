@@ -651,6 +651,102 @@
     hr.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 16px; }
     .feed-stack { display: flex; flex-direction: column; gap: 14px; }
 
+    /* ── Teacher panel ── */
+    .teacher-student-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background var(--transition), border-color var(--transition),
+                  transform var(--transition), box-shadow var(--transition);
+    }
+
+    .teacher-student-card:hover { transform: translateX(4px); border-color: var(--accent); box-shadow: var(--shadow-md); }
+
+    .student-avatar {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: var(--accent-bg);
+      border: 2px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 700; color: var(--accent);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .student-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .student-info { flex: 1; min-width: 0; }
+    .student-name { font-weight: 700; font-size: 0.95rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .student-meta { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
+
+    .grade-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      font-size: 0.92rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .grade-1 { background: #fef2f2; color: #dc2626; border: 2px solid #fecaca; }
+    .grade-2 { background: #fff7ed; color: #ea580c; border: 2px solid #fed7aa; }
+    .grade-3 { background: #fffbeb; color: #d97706; border: 2px solid #fde68a; }
+    .grade-4 { background: #f7fee7; color: #65a30d; border: 2px solid #d9f99d; }
+    .grade-5 { background: #f0fdf4; color: #16a34a; border: 2px solid #bbf7d0; }
+    .grade-6 { background: #ecfdf5; color: #059669; border: 2px solid #6ee7b7; }
+
+    body.dark .grade-1 { background: #2d1515; color: #fca5a5; border-color: #7f1d1d; }
+    body.dark .grade-2 { background: #2d1b0a; color: #fdba74; border-color: #7c2d12; }
+    body.dark .grade-3 { background: #2d2208; color: #fcd34d; border-color: #78350f; }
+    body.dark .grade-4 { background: #1a2d0a; color: #a3e635; border-color: #3f6212; }
+    body.dark .grade-5 { background: #0a2d14; color: #86efac; border-color: #14532d; }
+    body.dark .grade-6 { background: #062519; color: #6ee7b7; border-color: #065f46; }
+
+    .teacher-project-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 12px;
+      padding: 16px 18px;
+      transition: background var(--transition), border-color var(--transition);
+    }
+
+    .grade-form {
+      padding: 14px 0 4px;
+      border-top: 1px solid var(--border-2);
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .grade-select-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .grade-option {
+      flex: 1;
+      padding: 8px 4px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all var(--transition);
+    }
+
+    .grade-option:hover    { border-color: var(--accent); color: var(--accent); }
+    .grade-option.selected { border-color: var(--accent); background: var(--accent); color: #fff; }
+
     /* ── Proof image upload area ── */
     .proof-image-upload {
       display: flex;
@@ -1051,9 +1147,10 @@
   <button class="nav-btn active" onclick="show('feed')">Feed</button>
   <button class="nav-btn"        onclick="show('add')">+ Dodaj</button>
   <button class="nav-btn"        onclick="show('profile')">Mój profil</button>
-  <button class="nav-btn"        onclick="show('projects')">📁 Projekty</button>
+  <button class="nav-btn"        onclick="show('projects')">Projekty</button>
   <button class="nav-btn"        onclick="show('ranking')">Ranking</button>
   <button class="nav-btn"        onclick="show('settings')">Ustawienia</button>
+  <button class="nav-btn hidden" id="nav-teacher" onclick="show('teacher')">Panel nauczyciela</button>
 </nav>
 
 <main>
@@ -1359,6 +1456,37 @@
 
   </section>
 
+  <!-- ── Teacher panel ── -->
+  <section class="card hidden" id="page-teacher">
+
+    <!-- Widok: lista uczniow -->
+    <div id="teacher-class-view">
+      <div style="margin-bottom:18px;">
+        <div style="font-size:1.05rem;font-weight:800;color:var(--text);margin-bottom:4px;">Panel nauczyciela</div>
+        <div style="font-size:0.8rem;color:var(--text-muted);" id="teacher-class-name"></div>
+      </div>
+      <div id="teacher-loading" class="state-msg">Ladowanie...</div>
+      <div id="teacher-empty" class="state-msg hidden">Brak uczniow w klasie.</div>
+      <div id="teacher-students-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- Widok: projekty ucznia -->
+    <div id="teacher-student-view" class="hidden">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:0.85rem;flex-shrink:0;"
+                onclick="backToClassView()">← Wróc</button>
+        <div>
+          <div style="font-weight:800;font-size:1rem;color:var(--text);" id="student-view-name"></div>
+          <div style="font-size:0.76rem;color:var(--text-muted);" id="student-view-meta"></div>
+        </div>
+      </div>
+      <div id="student-projects-loading" class="state-msg">Ladowanie...</div>
+      <div id="student-projects-empty" class="state-msg hidden">Uczen nie ma jeszcze zadnych projektow.</div>
+      <div id="student-projects-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+    </div>
+
+  </section>
+
 </main>
 
 <script>
@@ -1434,14 +1562,16 @@
       logout.classList.remove("hidden");
       email.textContent  = user.email;
       xpEl.style.display = "inline-block";
-      // Załaduj XP asynchronicznie, nie blokuje UI
-      supabaseClient.from("profiles").select("xp, username")
+      supabaseClient.from("profiles").select("xp, username, role")
         .eq("id", user.id).single()
         .then(({ data: p }) => {
           updateXPDisplay(p?.xp || 0);
           if (p?.username) {
             const inp = document.getElementById("new-username");
             if (inp) inp.value = p.username;
+          }
+          if (p?.role === "teacher") {
+            document.getElementById("nav-teacher").classList.remove("hidden");
           }
         });
     } else {
@@ -1451,6 +1581,7 @@
       email.textContent  = "";
       xpEl.style.display = "none";
       xpEl.textContent   = "";
+      document.getElementById("nav-teacher").classList.add("hidden");
       show("feed");
     }
   }
@@ -1458,7 +1589,7 @@
   // ══════════════════════════════════════════
   //  NAWIGACJA
   // ══════════════════════════════════════════
-  const PAGES = ["feed", "add", "profile", "projects", "ranking", "settings"];
+  const PAGES = ["feed", "add", "profile", "projects", "ranking", "settings", "teacher"];
 
   function show(page) {
     PAGES.forEach(p => {
@@ -1472,6 +1603,7 @@
     if (page === "ranking")  loadRanking();
     if (page === "projects") loadProjects();
     if (page === "add")      populateProjectSelect();
+    if (page === "teacher")  loadTeacherPanel();
   }
 
   // ══════════════════════════════════════════
@@ -2461,6 +2593,216 @@
   }
 
   // ══════════════════════════════════════════
+  //  PANEL NAUCZYCIELA
+  // ══════════════════════════════════════════
+  async function loadTeacherPanel() {
+    if (!user) return;
+
+    const listEl    = document.getElementById("teacher-students-list");
+    const loadingEl = document.getElementById("teacher-loading");
+    const emptyEl   = document.getElementById("teacher-empty");
+    const classNameEl = document.getElementById("teacher-class-name");
+
+    listEl.innerHTML = "";
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    // Znajdz klase nauczyciela + uczniow z XP i liczba proofow
+    const { data: classData } = await supabaseClient
+      .from("classes")
+      .select("id, name")
+      .eq("teacher_id", user.id)
+      .maybeSingle();
+
+    if (!classData) {
+      loadingEl.classList.add("hidden");
+      classNameEl.textContent = "Nie przypisano klasy.";
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    classNameEl.textContent = `Klasa: ${classData.name}`;
+
+    const [{ data: students }, { data: proofCounts }] = await Promise.all([
+      supabaseClient.from("profiles")
+        .select("id, username, avatar_url, xp, level")
+        .eq("class_id", classData.id),
+      supabaseClient.from("proofs")
+        .select("user_id")
+    ]);
+
+    loadingEl.classList.add("hidden");
+
+    if (!students || students.length === 0) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    // Policz proofy per student
+    const proofCountMap = {};
+    (proofCounts || []).forEach(p => {
+      proofCountMap[p.user_id] = (proofCountMap[p.user_id] || 0) + 1;
+    });
+
+    students.forEach((s, i) => {
+      const count  = proofCountMap[s.id] || 0;
+      const level  = s.level || Math.floor((s.xp || 0) / 100) + 1;
+      const initials = (s.username || s.id.slice(0, 2)).slice(0, 2).toUpperCase();
+      const avatarHtml = s.avatar_url
+        ? `<img src="${escapeHtml(s.avatar_url)}" alt="" />`
+        : initials;
+
+      const card = document.createElement("div");
+      card.className = "teacher-student-card";
+      card.style.animationDelay = `${i * 30}ms`;
+      card.onclick = () => openStudentView(s, count);
+      card.innerHTML = `
+        <div class="student-avatar">${avatarHtml}</div>
+        <div class="student-info">
+          <div class="student-name">${escapeHtml(s.username || s.id.slice(0, 8))}</div>
+          <div class="student-meta">Poziom ${level} &nbsp;·&nbsp; ${count} ${count === 1 ? "proof" : "proofow"}</div>
+        </div>
+        <svg width="7" height="12" viewBox="0 0 7 12" fill="none" style="flex-shrink:0;opacity:.35">
+          <path d="M1 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      `;
+      listEl.appendChild(card);
+    });
+  }
+
+  async function openStudentView(student, proofCount) {
+    document.getElementById("teacher-class-view").classList.add("hidden");
+    document.getElementById("teacher-student-view").classList.remove("hidden");
+
+    const name = student.username || student.id.slice(0, 8);
+    document.getElementById("student-view-name").textContent = name;
+    document.getElementById("student-view-meta").textContent =
+      `${proofCount} ${proofCount === 1 ? "proof" : "proofow"} · Poziom ${student.level || 1}`;
+
+    const listEl    = document.getElementById("student-projects-list");
+    const loadingEl = document.getElementById("student-projects-loading");
+    const emptyEl   = document.getElementById("student-projects-empty");
+
+    listEl.innerHTML = "";
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    const { data: projects } = await supabaseClient
+      .from("projects")
+      .select("*, proofs(count)")
+      .eq("user_id", student.id)
+      .order("created_at", { ascending: false });
+
+    loadingEl.classList.add("hidden");
+
+    if (!projects || projects.length === 0) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    projects.forEach((p, i) => {
+      const proofCount   = p.proofs?.[0]?.count || 0;
+      const subjectLabel = p.subject ? (CATEGORIES[p.subject] || p.subject) : null;
+      const isFinished   = p.status === "finished";
+      const hasGrade     = p.grade != null;
+
+      const card = document.createElement("div");
+      card.className = "teacher-project-card";
+      card.style.animationDelay = `${i * 40}ms`;
+      card.id = `tpc-${p.id}`;
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+          <div style="font-weight:700;font-size:0.95rem;color:var(--text);">${escapeHtml(p.title)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            ${hasGrade ? `<span class="grade-badge grade-${p.grade}" title="Ocena">${p.grade}</span>` : ""}
+            <span class="project-status ${isFinished ? 'finished' : 'active'}">${isFinished ? 'Zakonczone' : 'Aktywny'}</span>
+          </div>
+        </div>
+        ${subjectLabel ? `<div style="font-size:0.8rem;color:var(--accent);font-weight:600;margin-bottom:6px;">${escapeHtml(subjectLabel)}</div>` : ""}
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">
+          ${proofCount} ${proofCount === 1 ? "etap" : "etapow"}
+          ${hasGrade && p.teacher_comment ? `&nbsp;·&nbsp; <em style="color:var(--text-2);">"${escapeHtml(p.teacher_comment)}"</em>` : ""}
+        </div>
+        <button class="btn btn-secondary" style="font-size:0.82rem;padding:6px 14px;"
+                onclick="toggleGradeForm('${p.id}', ${p.grade ?? 'null'})">
+          ${hasGrade ? 'Zmien ocene' : 'Ocen projekt'}
+        </button>
+        <div id="grade-form-${p.id}" class="grade-form hidden">
+          <div class="grade-select-row">
+            ${[1,2,3,4,5,6].map(n =>
+              `<button class="grade-option${p.grade === n ? ' selected' : ''}"
+                       id="go-${p.id}-${n}"
+                       onclick="selectGrade('${p.id}', ${n})">${n}</button>`
+            ).join("")}
+          </div>
+          <textarea id="grade-comment-${p.id}" rows="2" placeholder="Komentarz (opcjonalnie)"
+                    style="resize:vertical;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:0.88rem;background:var(--surface-2);color:var(--text);font-family:inherit;outline:none;"
+          >${escapeHtml(p.teacher_comment || "")}</textarea>
+          <div class="btn-row">
+            <button class="btn btn-primary" style="font-size:0.85rem;padding:7px 16px;"
+                    onclick="saveGrade('${p.id}', '${p.user_id}')">Zapisz</button>
+            <button class="btn btn-secondary" style="font-size:0.85rem;padding:7px 14px;"
+                    onclick="toggleGradeForm('${p.id}', null)">Anuluj</button>
+          </div>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+  }
+
+  function toggleGradeForm(projectId, currentGrade) {
+    const form = document.getElementById(`grade-form-${projectId}`);
+    form.classList.toggle("hidden");
+    if (currentGrade != null) selectGrade(projectId, currentGrade);
+  }
+
+  let _selectedGrades = {};
+
+  function selectGrade(projectId, grade) {
+    _selectedGrades[projectId] = grade;
+    [1,2,3,4,5,6].forEach(n => {
+      document.getElementById(`go-${projectId}-${n}`)
+        ?.classList.toggle("selected", n === grade);
+    });
+  }
+
+  async function saveGrade(projectId, studentId) {
+    const grade   = _selectedGrades[projectId];
+    const comment = document.getElementById(`grade-comment-${projectId}`)?.value.trim() || null;
+
+    if (!grade) return alert("Wybierz ocene (1-6).");
+
+    const { error } = await supabaseClient
+      .from("projects")
+      .update({ grade, teacher_comment: comment })
+      .eq("id", projectId);
+
+    if (error) { alert(error.message); return; }
+
+    // Odswiez karte bez przeladowania calego widoku
+    const badge = document.querySelector(`#tpc-${projectId} .grade-badge`);
+    if (badge) {
+      badge.className = `grade-badge grade-${grade}`;
+      badge.textContent = grade;
+    } else {
+      // Dodaj badge jesli go nie bylo
+      const titleRow = document.querySelector(`#tpc-${projectId} > div:first-child > div:last-child`);
+      if (titleRow) {
+        const newBadge = document.createElement("span");
+        newBadge.className = `grade-badge grade-${grade}`;
+        newBadge.title = "Ocena";
+        newBadge.textContent = grade;
+        titleRow.prepend(newBadge);
+      }
+    }
+    document.getElementById(`grade-form-${projectId}`).classList.add("hidden");
+  }
+
+  function backToClassView() {
+    document.getElementById("teacher-student-view").classList.add("hidden");
+    document.getElementById("teacher-class-view").classList.remove("hidden");
+  }
+
   //  HELPERS
   // ══════════════════════════════════════════
   function showMsg(id, text, type) {
