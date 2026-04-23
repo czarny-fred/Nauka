@@ -1348,26 +1348,48 @@
         <span id="ranking-updated" style="font-size:0.75rem;color:var(--text-muted);"></span>
       </div>
 
-      <!-- Tabs -->
-      <div class="tab-row" style="margin-bottom:16px;">
-        <button class="tab active" id="rank-tab-users"    onclick="switchRankingTab('users')">Uczniowie</button>
-        <button class="tab"        id="rank-tab-projects" onclick="switchRankingTab('projects')">Projekty</button>
+      <!-- Wyszukiwarka -->
+      <div style="position:relative;margin-bottom:16px;">
+        <input type="text" id="search-input"
+               placeholder="Szukaj ucznia po nazwie…"
+               oninput="onSearchInput()"
+               autocomplete="off"
+               style="padding-right:36px;" />
+        <button id="search-clear-btn"
+                onclick="clearSearch()"
+                class="hidden"
+                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text-muted);line-height:1;">✕</button>
       </div>
 
-      <!-- Panel: uczniowie -->
-      <div id="ranking-users-panel">
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">wynik = lajki × 2 + proofy × 5</p>
-        <div id="ranking-loading" class="state-msg">Ładowanie…</div>
-        <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
-        <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+      <!-- Wyniki wyszukiwania (zastępują taby podczas wyszukiwania) -->
+      <div id="search-results-panel" class="hidden">
+        <div id="search-loading" class="state-msg hidden">Szukanie…</div>
+        <div id="search-empty"   class="state-msg hidden">Brak wyników.</div>
+        <ol id="search-results" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
       </div>
 
-      <!-- Panel: projekty -->
-      <div id="ranking-projects-panel" class="hidden">
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">wynik = etapy × 10 + ocena × 5</p>
-        <div id="proj-ranking-loading" class="state-msg">Ładowanie…</div>
-        <div id="proj-ranking-empty"   class="state-msg hidden">Brak projektów z etapami.</div>
-        <ol id="proj-ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+      <!-- Tabs (ukryte podczas wyszukiwania) -->
+      <div id="ranking-tabs-area">
+        <div class="tab-row" style="margin-bottom:16px;">
+          <button class="tab active" id="rank-tab-users"    onclick="switchRankingTab('users')">Uczniowie</button>
+          <button class="tab"        id="rank-tab-projects" onclick="switchRankingTab('projects')">Projekty</button>
+        </div>
+
+        <!-- Panel: uczniowie -->
+        <div id="ranking-users-panel">
+          <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">wynik = lajki × 2 + proofy × 5</p>
+          <div id="ranking-loading" class="state-msg">Ładowanie…</div>
+          <div id="ranking-empty"   class="state-msg hidden">Brak danych.</div>
+          <ol id="ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+        </div>
+
+        <!-- Panel: projekty -->
+        <div id="ranking-projects-panel" class="hidden">
+          <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">wynik = etapy × 10 + ocena × 5</p>
+          <div id="proj-ranking-loading" class="state-msg">Ładowanie…</div>
+          <div id="proj-ranking-empty"   class="state-msg hidden">Brak projektów z etapami.</div>
+          <ol id="proj-ranking" style="list-style:none;display:flex;flex-direction:column;gap:8px;"></ol>
+        </div>
       </div>
     </div>
 
@@ -2170,6 +2192,111 @@
         </div>
       `;
       listEl.appendChild(li);
+    });
+  }
+
+  // ══════════════════════════════════════════
+  //  WYSZUKIWARKA
+  // ══════════════════════════════════════════
+  let _searchDebounce = null;
+
+  function onSearchInput() {
+    const q = document.getElementById("search-input").value;
+    document.getElementById("search-clear-btn").classList.toggle("hidden", q.length === 0);
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(searchProfiles, 300);
+  }
+
+  function clearSearch() {
+    document.getElementById("search-input").value = "";
+    document.getElementById("search-clear-btn").classList.add("hidden");
+    document.getElementById("search-results-panel").classList.add("hidden");
+    document.getElementById("ranking-tabs-area").classList.remove("hidden");
+    document.getElementById("search-results").innerHTML = "";
+  }
+
+  async function searchProfiles() {
+    const query      = document.getElementById("search-input").value.trim();
+    const resultsEl  = document.getElementById("search-results");
+    const loadingEl  = document.getElementById("search-loading");
+    const emptyEl    = document.getElementById("search-empty");
+    const panel      = document.getElementById("search-results-panel");
+    const tabsArea   = document.getElementById("ranking-tabs-area");
+
+    if (query.length < 2) {
+      panel.classList.add("hidden");
+      tabsArea.classList.remove("hidden");
+      resultsEl.innerHTML = "";
+      return;
+    }
+
+    panel.classList.remove("hidden");
+    tabsArea.classList.add("hidden");
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+    resultsEl.innerHTML = "";
+
+    // Szukaj po username (nie email — prywatny)
+    const { data: users, error } = await supabaseClient
+      .from("profiles")
+      .select("id, username, avatar_url, xp, level")
+      .ilike("username", `%${query}%`)
+      .limit(10);
+
+    loadingEl.classList.add("hidden");
+
+    if (error || !users || users.length === 0) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    const ids = users.map(u => u.id);
+
+    // Jeden request na proofy + lajki, jeden na projekty — bez N+1
+    const [{ data: proofs }, { data: projects }] = await Promise.all([
+      supabaseClient.from("proofs").select("user_id, likes(count)").in("user_id", ids),
+      supabaseClient.from("projects").select("user_id").in("user_id", ids),
+    ]);
+
+    // Agregacja po stronie klienta
+    const statsMap = {};
+    (proofs || []).forEach(p => {
+      if (!statsMap[p.user_id]) statsMap[p.user_id] = { proofs: 0, likes: 0, projects: 0 };
+      statsMap[p.user_id].proofs++;
+      statsMap[p.user_id].likes += p.likes?.[0]?.count || 0;
+    });
+    (projects || []).forEach(p => {
+      if (!statsMap[p.user_id]) statsMap[p.user_id] = { proofs: 0, likes: 0, projects: 0 };
+      statsMap[p.user_id].projects++;
+    });
+
+    users.forEach(u => {
+      const st       = statsMap[u.id] || { proofs: 0, likes: 0, projects: 0 };
+      const initials = (u.username || "?").slice(0, 2).toUpperCase();
+      const avatarHtml = u.avatar_url
+        ? `<img src="${escapeHtml(u.avatar_url)}" alt="" />`
+        : initials;
+      const level = u.level || Math.floor((u.xp || 0) / 100) + 1;
+
+      const li = document.createElement("li");
+      li.className = "rank-item";
+      li.onclick = () => showPublicProfile(u.id, u.username || u.id.slice(0, 8));
+      li.innerHTML = `
+        <div class="rank-avatar">${avatarHtml}</div>
+        <div class="rank-info">
+          <div class="rank-name">${escapeHtml(u.username || u.id.slice(0, 8))}</div>
+          <div class="rank-sub">
+            Lv.${level} &nbsp;·&nbsp;
+            ${st.proofs} ${st.proofs === 1 ? "proof" : "proofów"} &nbsp;·&nbsp;
+            ${st.projects} ${st.projects === 1 ? "projekt" : "projektów"} &nbsp;·&nbsp;
+            <span class="like-icon-sm"></span> ${st.likes}
+          </div>
+        </div>
+        <svg width="7" height="12" viewBox="0 0 7 12" fill="none" style="flex-shrink:0;opacity:.35">
+          <path d="M1 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      `;
+      resultsEl.appendChild(li);
     });
   }
 
