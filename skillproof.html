@@ -2067,8 +2067,9 @@
     emptyEl.classList.add("hidden");
 
     const { data, error } = await supabaseClient
-      .from("profiles")
-      .select("id, username, avatar_url, proofs(count), likes(count)");
+      .from("user_stats")
+      .select("*")
+      .order("likes_count", { ascending: false });
 
     loadingEl.classList.add("hidden");
 
@@ -2076,17 +2077,14 @@
 
     const medals = ["🥇", "🥈", "🥉"];
 
-    const ranked = data
-      .map(p => ({
-        id:         p.id,
-        username:   p.username || p.id.slice(0, 8),
-        avatar_url: p.avatar_url || null,
-        proofs:     p.proofs[0]?.count || 0,
-        likes:      p.likes[0]?.count  || 0,
-        // scoring: lajki × 2 + proofy × 5
-        score:      (p.likes[0]?.count || 0) * 2 + (p.proofs[0]?.count || 0) * 5,
-      }))
-      .sort((a, b) => b.score - a.score);
+    const ranked = data.map(p => ({
+      id:         p.user_id,
+      username:   p.username || p.user_id?.slice(0, 8),
+      avatar_url: p.avatar_url || null,
+      proofs:     p.proofs_count || 0,
+      likes:      p.likes_count  || 0,
+      score:      (p.likes_count || 0) * 2 + (p.proofs_count || 0) * 5,
+    }));
 
     const avatarHtml = (entry) => entry.avatar_url
       ? `<img src="${escapeHtml(entry.avatar_url)}" alt="" />`
@@ -2655,13 +2653,30 @@
     thumb.classList.add("has-image");
   }
 
+  function compressImage(file, maxWidth = 1200) {
+    return new Promise((resolve) => {
+      const img    = document.createElement("img");
+      const reader = new FileReader();
+      reader.onload = (e) => (img.src = e.target.result);
+      img.onload = () => {
+        const scale  = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width  = img.width  * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.8);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function uploadProofImage(file) {
-    const ext  = file.name.split(".").pop().toLowerCase();
-    const path = `${user.id}/${Date.now()}.${ext}`;
+    const compressed = await compressImage(file);
+    const path = `${user.id}/${Date.now()}.jpg`;
 
     const { error } = await supabaseClient.storage
       .from("proof-images")
-      .upload(path, file, { upsert: false });
+      .upload(path, compressed, { upsert: false, contentType: "image/jpeg" });
 
     if (error) {
       showMsg("msg-proof", `Błąd uploadu zdjęcia: ${error.message}`, "error");
@@ -2669,7 +2684,7 @@
     }
 
     const { data } = supabaseClient.storage.from("proof-images").getPublicUrl(path);
-    return data.publicUrl;
+    return data.publicUrl + `?v=${Date.now()}`;
   }
 
   function openLightbox(url) {
