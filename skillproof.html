@@ -2236,43 +2236,18 @@
     emptyEl.classList.add("hidden");
     resultsEl.innerHTML = "";
 
-    // Szukaj po username (nie email — prywatny)
-    const { data: users, error } = await supabaseClient
-      .from("profiles")
-      .select("id, username, avatar_url, xp, level")
-      .ilike("username", `%${query}%`)
-      .limit(10);
+    const { data, error } = await supabaseClient.rpc("search_profiles", { query });
 
     loadingEl.classList.add("hidden");
 
-    if (error || !users || users.length === 0) {
+    if (error || !data || data.length === 0) {
       emptyEl.classList.remove("hidden");
       return;
     }
 
-    const ids = users.map(u => u.id);
-
-    // Jeden request na proofy + lajki, jeden na projekty — bez N+1
-    const [{ data: proofs }, { data: projects }] = await Promise.all([
-      supabaseClient.from("proofs").select("user_id, likes(count)").in("user_id", ids),
-      supabaseClient.from("projects").select("user_id").in("user_id", ids),
-    ]);
-
-    // Agregacja po stronie klienta
-    const statsMap = {};
-    (proofs || []).forEach(p => {
-      if (!statsMap[p.user_id]) statsMap[p.user_id] = { proofs: 0, likes: 0, projects: 0 };
-      statsMap[p.user_id].proofs++;
-      statsMap[p.user_id].likes += p.likes?.[0]?.count || 0;
-    });
-    (projects || []).forEach(p => {
-      if (!statsMap[p.user_id]) statsMap[p.user_id] = { proofs: 0, likes: 0, projects: 0 };
-      statsMap[p.user_id].projects++;
-    });
-
-    users.forEach(u => {
-      const st       = statsMap[u.id] || { proofs: 0, likes: 0, projects: 0 };
-      const initials = (u.username || "?").slice(0, 2).toUpperCase();
+    data.forEach(u => {
+      const name       = u.username || u.email || u.user_id?.slice(0, 8) || "?";
+      const initials   = name.slice(0, 2).toUpperCase();
       const avatarHtml = u.avatar_url
         ? `<img src="${escapeHtml(u.avatar_url)}" alt="" />`
         : initials;
@@ -2280,16 +2255,15 @@
 
       const li = document.createElement("li");
       li.className = "rank-item";
-      li.onclick = () => showPublicProfile(u.id, u.username || u.id.slice(0, 8));
+      li.onclick = () => showPublicProfile(u.user_id, name);
       li.innerHTML = `
         <div class="rank-avatar">${avatarHtml}</div>
         <div class="rank-info">
-          <div class="rank-name">${escapeHtml(u.username || u.id.slice(0, 8))}</div>
+          <div class="rank-name">${escapeHtml(name)}</div>
           <div class="rank-sub">
             Lv.${level} &nbsp;·&nbsp;
-            ${st.proofs} ${st.proofs === 1 ? "proof" : "proofów"} &nbsp;·&nbsp;
-            ${st.projects} ${st.projects === 1 ? "projekt" : "projektów"} &nbsp;·&nbsp;
-            <span class="like-icon-sm"></span> ${st.likes}
+            ${u.projects_count || 0} ${(u.projects_count || 0) === 1 ? "projekt" : "projektów"} &nbsp;·&nbsp;
+            <span class="like-icon-sm"></span> ${u.likes_count || 0}
           </div>
         </div>
         <svg width="7" height="12" viewBox="0 0 7 12" fill="none" style="flex-shrink:0;opacity:.35">
