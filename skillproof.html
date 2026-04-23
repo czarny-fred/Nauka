@@ -2049,8 +2049,13 @@
       .update({ username })
       .eq("id", user.id);
 
-    if (error) showMsg("msg-settings", error.message, "error");
-    else       showMsg("msg-settings", "Zapisano!", "success");
+    if (error) { showMsg("msg-settings", error.message, "error"); return; }
+
+    // Zaktualizuj lokalny stan i widoczną nazwę na profilu
+    if (user) user.username = username;
+    const nameEl = document.getElementById("profile-username");
+    if (nameEl && nameEl.textContent !== "—") nameEl.textContent = username;
+    showMsg("msg-settings", "Zapisano!", "success");
   }
 
   // ══════════════════════════════════════════
