@@ -365,6 +365,30 @@
       transform: translateY(-2px);
     }
 
+    /* Kolory przedmiotów — delikatny gradient od dołu */
+    .proof-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 4px;
+      border-radius: 0 0 14px 14px;
+      opacity: 0.85;
+    }
+    .proof-card { position: relative; overflow: hidden; }
+
+    .proof-card.subject-matematyka::after  { background: linear-gradient(90deg,#6366f1,#8b5cf6); }
+    .proof-card.subject-polski::after      { background: linear-gradient(90deg,#ef4444,#f97316); }
+    .proof-card.subject-historia::after    { background: linear-gradient(90deg,#92400e,#d97706); }
+    .proof-card.subject-biologia::after    { background: linear-gradient(90deg,#16a34a,#4ade80); }
+    .proof-card.subject-chemia::after      { background: linear-gradient(90deg,#f97316,#eab308); }
+    .proof-card.subject-fizyka::after      { background: linear-gradient(90deg,#0ea5e9,#6366f1); }
+    .proof-card.subject-informatyka::after { background: linear-gradient(90deg,#10b981,#0ea5e9); }
+    .proof-card.subject-geografia::after   { background: linear-gradient(90deg,#0ea5e9,#16a34a); }
+    .proof-card.subject-angielski::after   { background: linear-gradient(90deg,#ef4444,#3b82f6); }
+    .proof-card.subject-niemiecki::after   { background: linear-gradient(90deg,#1a1a1a,#ef4444,#eab308); }
+    .proof-card.subject-wf::after          { background: linear-gradient(90deg,#f97316,#ef4444); }
+    .proof-card.subject-inne::after        { background: linear-gradient(90deg,#94a3b8,#64748b); }
+
     .proof-card .proof-title {
       font-size: 1.1rem;
       font-weight: 700;
@@ -414,7 +438,7 @@
 
     .btn-like:hover  { background: var(--surface-2); }
     .btn-like:active { transform: scale(0.88); }
-    .btn-like.liked  { background: var(--error-bg); border-color: var(--error-border); }
+    .btn-like.liked  { background: var(--accent-bg); border-color: var(--accent); }
 
     .like-icon {
       display: block;
@@ -425,7 +449,12 @@
       background-position: 0% center;
     }
 
-    .like-icon.dislike { background-position: 100% center; }
+    @keyframes cardPop {
+      0%   { transform: translateY(-2px) scale(1); }
+      40%  { transform: translateY(-5px) scale(1.02); }
+      100% { transform: translateY(-2px) scale(1); }
+    }
+    .proof-card.popping { animation: cardPop 0.28s ease-out both; }
 
     .like-count { font-size: 0.83rem; color: var(--text-2); font-weight: 600; }
 
@@ -1994,20 +2023,22 @@
     const countEl   = document.querySelector(`[data-like-count="${proofId}"]`);
     const prevCount = parseInt(countEl?.textContent || "0");
 
-    const icon = btn?.querySelector(".like-icon");
-
     if (alreadyLiked) {
       myLikedIds.delete(proofId);
       btn?.classList.remove("liked");
-      icon?.classList.remove("dislike");
-      if (btn) btn.title = "Lubię to";
       if (countEl) countEl.textContent = Math.max(0, prevCount - 1);
     } else {
       myLikedIds.add(proofId);
       btn?.classList.add("liked");
-      icon?.classList.add("dislike");
-      if (btn) btn.title = "Cofnij lajk";
       if (countEl) countEl.textContent = prevCount + 1;
+      // Pop animacja karty
+      const card = btn?.closest(".proof-card");
+      if (card) {
+        card.classList.remove("popping");
+        void card.offsetWidth;
+        card.classList.add("popping");
+        card.addEventListener("animationend", () => card.classList.remove("popping"), { once: true });
+      }
     }
 
     // Wyślij do bazy
@@ -2505,7 +2536,7 @@
   // ══════════════════════════════════════════
   function createProofCard(proof, isOwn) {
     const card = document.createElement("article");
-    card.className = "proof-card";
+    card.className = "proof-card" + (proof.category ? ` subject-${proof.category}` : "");
 
     const date         = new Date(proof.created_at).toLocaleDateString("pl-PL",
       { day: "numeric", month: "long", year: "numeric" });
