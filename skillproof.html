@@ -1362,6 +1362,11 @@
     <h3>Moje Proofy</h3>
     <div id="profile-loading" class="state-msg">Ładowanie…</div>
     <div id="my-proofs" class="feed-stack"></div>
+    <hr class="divider" style="margin-top:32px;" />
+    <div style="margin-top:12px;">
+      <button class="btn" style="background:var(--error,#e53e3e);color:#fff;font-size:0.85rem;" onclick="deleteAccount()">Usuń konto</button>
+      <div class="msg" id="msg-delete" style="margin-top:8px;"></div>
+    </div>
   </section>
 
   <!-- ── Settings ── -->
@@ -2103,25 +2108,26 @@
   }
 
   // ══════════════════════════════════════════
-  //  USTAWIENIA — zmiana username
-  // ══════════════════════════════════════════
-  async function updateUsername() {
+  async function deleteAccount() {
     if (!user) return;
-    const username = document.getElementById("new-username").value.trim();
-    if (!username) return showMsg("msg-settings", "Wpisz nazwę.", "error");
+    const confirmed = confirm("Czy na pewno chcesz usunąć konto? Wszystkie twoje proofy, projekty i dane zostaną trwale usunięte.");
+    if (!confirmed) return;
 
-    const { error } = await supabaseClient
-      .from("profiles")
-      .update({ username })
-      .eq("id", user.id);
+    showMsg("msg-delete", "Usuwanie…", "");
 
-    if (error) { showMsg("msg-settings", error.message, "error"); return; }
+    const id = user.id;
 
-    // Zaktualizuj lokalny stan i widoczną nazwę na profilu
-    if (user) user.username = username;
-    const nameEl = document.getElementById("profile-username");
-    if (nameEl && nameEl.textContent !== "—") nameEl.textContent = username;
-    showMsg("msg-settings", "Zapisano!", "success");
+    // Usuń dane użytkownika (kolejność ważna ze względu na FK)
+    await supabaseClient.from("likes").delete().eq("user_id", id);
+    await supabaseClient.from("comments").delete().eq("user_id", id);
+    await supabaseClient.from("follows").delete().or(`follower_id.eq.${id},following_id.eq.${id}`);
+    await supabaseClient.from("proofs").delete().eq("user_id", id);
+    await supabaseClient.from("projects").delete().eq("user_id", id);
+    await supabaseClient.from("profiles").delete().eq("id", id);
+
+    // Wyloguj
+    await supabaseClient.auth.signOut();
+    setUser(null);
   }
 
   // ══════════════════════════════════════════
