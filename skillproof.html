@@ -2475,7 +2475,9 @@
       : "";
 
     const categoryLabel = proof.category ? (CATEGORIES[proof.category] || proof.category) : null;
-    const imgs = proof.image_urls?.length ? proof.image_urls : (proof.image_url ? [proof.image_url] : []);
+    const imgs = Array.isArray(proof.image_urls) && proof.image_urls.length
+      ? proof.image_urls
+      : (proof.image_url ? [proof.image_url] : []);
     const imgHtml = imgs.length
       ? `<div class="proof-card-gallery">
            ${imgs.map(u => `<img src="${escapeHtml(u)}" alt="${escapeHtml(proof.title)}" loading="lazy" onclick="openLightbox('${escapeHtml(u)}')" />`).join("")}
@@ -2851,7 +2853,7 @@
 
     const { data, error } = await supabaseClient
       .from("proofs")
-      .select("*, profiles!user_id(username)")
+      .select("*")
       .eq("featured", true)
       .limit(1)
       .maybeSingle();
@@ -2864,7 +2866,7 @@
         <div class="featured-badge">🌟 Post dnia</div>
         <div class="proof-title" style="margin-bottom:6px;">${escapeHtml(data.title)}</div>
         <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:10px;">
-          od <strong>${escapeHtml(data.profiles?.username || "?")}</strong>
+          od <strong>${escapeHtml(data.username || "?")}</strong>
         </p>
         <p class="proof-text">${escapeHtml(data.result)}</p>
         ${data.proof_link
