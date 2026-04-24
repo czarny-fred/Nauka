@@ -1738,8 +1738,8 @@
     const imageFile = document.getElementById("proof-image-input").files[0];
     let image_url = null;
     if (imageFile) {
-      if (imageFile.size > 5 * 1024 * 1024)
-        return showMsg("msg-proof", "Zdjęcie za duże (maks. 5 MB).", "error");
+      if (imageFile.size > 10 * 1024 * 1024)
+        return showMsg("msg-proof", "Zdjęcie za duże (maks. 10 MB).", "error");
       image_url = await uploadProofImage(imageFile);
       if (image_url === null) return; // błąd już pokazany w uploadProofImage
     }
