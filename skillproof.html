@@ -1540,9 +1540,23 @@
         <div style="font-size:1.05rem;font-weight:800;color:var(--text);margin-bottom:4px;">Panel nauczyciela</div>
         <div style="font-size:0.8rem;color:var(--text-muted);" id="teacher-class-name"></div>
       </div>
-      <div id="teacher-loading" class="state-msg">Ladowanie...</div>
-      <div id="teacher-empty" class="state-msg hidden">Brak uczniow w klasie.</div>
-      <div id="teacher-students-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-secondary" id="teacher-tab-students" style="font-size:0.85rem;padding:7px 16px;"
+                onclick="switchTeacherTab('students')">Uczniowie</button>
+        <button class="btn btn-secondary" id="teacher-tab-moderation" style="font-size:0.85rem;padding:7px 16px;"
+                onclick="switchTeacherTab('moderation')">Moderacja</button>
+      </div>
+      <div id="teacher-panel-students">
+        <div id="teacher-loading" class="state-msg">Ladowanie...</div>
+        <div id="teacher-empty" class="state-msg hidden">Brak uczniow w klasie.</div>
+        <div id="teacher-students-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+      <div id="teacher-panel-moderation" class="hidden">
+        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Wszystkie komentarze — kliknij Usuń jeśli treść jest nieodpowiednia.</div>
+        <div id="mod-loading" class="state-msg">Ładowanie…</div>
+        <div id="mod-empty" class="state-msg hidden">Brak komentarzy.</div>
+        <div id="mod-comments-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
     </div>
 
     <!-- Widok: projekty ucznia -->
@@ -1781,6 +1795,10 @@
 
     if (!title || !problem || !solution)
       return showMsg("msg-proof", "Wypełnij przynajmniej pierwsze trzy pola.", "error");
+
+    const allText = [title, problem, solution, why, hardest, learned].join(" ");
+    if (containsBadWords(allText))
+      return showMsg("msg-proof", "Treść zawiera niedozwolone słowa. Zmień tekst i spróbuj ponownie.", "error");
 
     // Upload zdjęć (wiele)
     const imageFiles = Array.from(document.getElementById("proof-image-input").files);
@@ -2855,6 +2873,11 @@
     const text  = input?.value.trim();
     if (!text) return;
 
+    if (containsBadWords(text)) {
+      alert("Komentarz zawiera niedozwolone słowa. Zmień treść i spróbuj ponownie.");
+      return;
+    }
+
     input.value = "";
     input.disabled = true;
 
@@ -3125,6 +3148,66 @@
     document.getElementById("teacher-class-view").classList.remove("hidden");
   }
 
+  function switchTeacherTab(tab) {
+    const isStudents = tab === "students";
+    document.getElementById("teacher-panel-students").classList.toggle("hidden", !isStudents);
+    document.getElementById("teacher-panel-moderation").classList.toggle("hidden", isStudents);
+    document.getElementById("teacher-tab-students").classList.toggle("btn-primary", isStudents);
+    document.getElementById("teacher-tab-moderation").classList.toggle("btn-primary", !isStudents);
+    if (!isStudents) loadModeration();
+  }
+
+  async function loadModeration() {
+    const listEl    = document.getElementById("mod-comments-list");
+    const loadingEl = document.getElementById("mod-loading");
+    const emptyEl   = document.getElementById("mod-empty");
+
+    if (listEl.children.length > 0) return;
+
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    const { data, error } = await supabaseClient
+      .from("comments")
+      .select("id, content, created_at, user_id, proof_id, profiles!user_id(username)")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    loadingEl.classList.add("hidden");
+
+    if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
+
+    data.forEach(c => {
+      const div = document.createElement("div");
+      div.id = `mod-c-${c.id}`;
+      div.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);";
+      div.innerHTML = `
+        <div style="min-width:0;">
+          <div style="font-size:0.8rem;color:var(--accent);font-weight:700;margin-bottom:2px;">
+            ${escapeHtml(c.profiles?.username || c.user_id?.slice(0,8) || "?")}
+          </div>
+          <div style="font-size:0.88rem;color:var(--text);word-break:break-word;">${escapeHtml(c.content)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">
+            ${new Date(c.created_at).toLocaleDateString("pl-PL", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })}
+          </div>
+        </div>
+        <button class="btn" style="background:var(--error,#e53e3e);color:#fff;font-size:0.8rem;padding:5px 12px;flex-shrink:0;"
+                onclick="deleteComment('${c.id}')">Usuń</button>
+      `;
+      listEl.appendChild(div);
+    });
+  }
+
+  async function deleteComment(commentId) {
+    if (!confirm("Usunąć ten komentarz?")) return;
+    const { error } = await supabaseClient.from("comments").delete().eq("id", commentId);
+    if (error) { alert(error.message); return; }
+    document.getElementById(`mod-c-${commentId}`)?.remove();
+    const listEl = document.getElementById("mod-comments-list");
+    if (listEl.children.length === 0)
+      document.getElementById("mod-empty").classList.remove("hidden");
+  }
+
   //  HELPERS
   // ══════════════════════════════════════════
   function showMsg(id, text, type) {
@@ -3133,6 +3216,27 @@
     el.textContent = text;
     el.className   = `msg show ${type}`;
     setTimeout(() => { el.className = "msg"; }, 5000);
+  }
+
+  const BAD_WORDS = [
+    "kurwa","kurwy","kurwę","kurwą","chuj","chuja","chujowy","chujowa","pizdą","pizda","pizdę",
+    "piździe","jebać","jebany","jebana","jebane","jebię","jebie","jebał","jebała","pojebany",
+    "pojebana","zajebać","zajebany","zajebiście","odpierdol","odpierdolić","pierdolić","pierdol",
+    "pierdolę","pierdoli","pierdolony","pierdolona","pierdolone","wypierdalać","wypierdalaj",
+    "wpierdol","wpierdolić","spierdalaj","spierdolić","spierdolony","spierdalający","skurwysyn",
+    "skurwiel","skurwysynu","dupek","dupki","dupa","dupy","dupę","dupą","dупie","huj","huje",
+    "hujowy","cwel","cweli","cwelski","morda","mordę","mordą","kutas","kutasa","kutasem",
+    "cipa","cipę","cipą","cipe","pedał","pedała","pedałem","pedały","bitch","fuck","shit",
+    "asshole","bastard","whore","cock","pussy","faggot","nigger","retard"
+  ];
+
+  function containsBadWords(text) {
+    if (!text) return false;
+    const lower = text.toLowerCase().replace(/[^a-ząćęłńóśźża-z0-9\s]/gi, "");
+    return BAD_WORDS.some(w => {
+      const re = new RegExp(`(^|\\s)${w}(\\s|$|[^a-ząćęłńóśźż])`, "i");
+      return re.test(lower) || lower.includes(w);
+    });
   }
 
   function escapeHtml(str) {
