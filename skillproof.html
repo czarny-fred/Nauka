@@ -2144,16 +2144,25 @@
 
     if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
+    // Pobierz nazwy i avatary z profiles (user_stats może nie mieć tych pól)
+    const ids = data.map(p => p.user_id).filter(Boolean);
+    const { data: profiles } = await supabaseClient
+      .from("profiles").select("id, username, avatar_url").in("id", ids);
+    const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
     const medals = ["🥇", "🥈", "🥉"];
 
-    const ranked = data.map(p => ({
-      id:         p.user_id,
-      username:   p.username || p.user_id?.slice(0, 8),
-      avatar_url: p.avatar_url || null,
-      proofs:     p.proofs_count || 0,
-      likes:      p.likes_count  || 0,
-      score:      (p.likes_count || 0) * 2 + (p.proofs_count || 0) * 5,
-    }));
+    const ranked = data.map(p => {
+      const prof = profileMap.get(p.user_id) || {};
+      return {
+        id:         p.user_id,
+        username:   prof.username || p.username || p.user_id?.slice(0, 8),
+        avatar_url: prof.avatar_url || p.avatar_url || null,
+        proofs:     p.proofs_count || 0,
+        likes:      p.likes_count  || 0,
+        score:      (p.likes_count || 0) * 2 + (p.proofs_count || 0) * 5,
+      };
+    });
 
     const avatarHtml = (entry) => entry.avatar_url
       ? `<img src="${escapeHtml(entry.avatar_url)}" alt="" />`
