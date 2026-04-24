@@ -2152,34 +2152,37 @@
     loadingEl.classList.remove("hidden");
     emptyEl.classList.add("hidden");
 
-    const { data, error } = await supabaseClient
-      .from("user_stats")
-      .select("*")
-      .order("likes_count", { ascending: false });
+    const [{ data: profiles, error }, { data: proofsData }, { data: likesData }] =
+      await Promise.all([
+        supabaseClient.from("profiles").select("id, username, avatar_url"),
+        supabaseClient.from("proofs").select("user_id"),
+        supabaseClient.from("likes").select("proof_id, proofs!inner(user_id)"),
+      ]);
 
     loadingEl.classList.add("hidden");
 
-    if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
+    if (error || !profiles || profiles.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
-    // Pobierz nazwy i avatary z profiles (user_stats może nie mieć tych pól)
-    const ids = data.map(p => p.user_id).filter(Boolean);
-    const { data: profiles } = await supabaseClient
-      .from("profiles").select("id, username, avatar_url").in("id", ids);
-    const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+    // Policz proofy i lajki po stronie klienta
+    const proofCounts = new Map();
+    (proofsData || []).forEach(p => proofCounts.set(p.user_id, (proofCounts.get(p.user_id) || 0) + 1));
+
+    const likeCounts = new Map();
+    (likesData || []).forEach(l => {
+      const uid = l.proofs?.user_id;
+      if (uid) likeCounts.set(uid, (likeCounts.get(uid) || 0) + 1);
+    });
 
     const medals = ["🥇", "🥈", "🥉"];
 
-    const ranked = data.map(p => {
-      const prof = profileMap.get(p.user_id) || {};
-      return {
-        id:         p.user_id,
-        username:   prof.username || p.username || p.user_id?.slice(0, 8),
-        avatar_url: prof.avatar_url || p.avatar_url || null,
-        proofs:     p.proofs_count || 0,
-        likes:      p.likes_count  || 0,
-        score:      (p.likes_count || 0) * 2 + (p.proofs_count || 0) * 5,
-      };
-    });
+    const ranked = profiles.map(p => ({
+      id:         p.id,
+      username:   p.username || p.id.slice(0, 8),
+      avatar_url: p.avatar_url || null,
+      proofs:     proofCounts.get(p.id) || 0,
+      likes:      likeCounts.get(p.id)  || 0,
+      score:      (likeCounts.get(p.id) || 0) * 2 + (proofCounts.get(p.id) || 0) * 5,
+    })).sort((a, b) => b.score - a.score);
 
     const avatarHtml = (entry) => entry.avatar_url
       ? `<img src="${escapeHtml(entry.avatar_url)}" alt="" />`
