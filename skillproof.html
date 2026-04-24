@@ -1198,20 +1198,28 @@
     <h2>Dodaj nowy Proof</h2>
     <hr class="divider" />
     <div class="form-group">
-      <label>Tytuł</label>
-      <input type="text" id="proof-title" placeholder="np. Zbudowałem własne API w 3 dni" />
+      <label>Temat mojego projektu / zadania</label>
+      <input type="text" id="proof-title" placeholder="np. Aplikacja do zarządzania zadaniami" />
     </div>
     <div class="form-group">
-      <label>Problem</label>
-      <textarea id="proof-problem" placeholder="Jaki problem chciałeś rozwiązać?"></textarea>
+      <label>Co udało mi się zrobić?</label>
+      <textarea id="proof-problem" placeholder="Opisz konkretnie, co osiągnąłeś…"></textarea>
     </div>
     <div class="form-group">
-      <label>Rozwiązanie</label>
-      <textarea id="proof-solution" placeholder="Jak go rozwiązałeś?"></textarea>
+      <label>Czego użyłem, żeby to zrobić?</label>
+      <textarea id="proof-solution" placeholder="Narzędzia, technologie, metody, materiały…"></textarea>
     </div>
     <div class="form-group">
-      <label>Wynik</label>
-      <input type="text" id="proof-result" placeholder="np. API obsługuje 500 req/s" />
+      <label>Dlaczego zdecydowałem się na takie rozwiązanie?</label>
+      <textarea id="proof-why" placeholder="Co przekonało mnie do takiego podejścia?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Co było najtrudniejsze i jak to pokonałem?</label>
+      <textarea id="proof-hardest" placeholder="Opisz napotkane przeszkody i jak sobie z nimi poradziłeś…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Czego się nauczyłem?</label>
+      <textarea id="proof-learned" placeholder="Jaką nową wiedzę lub umiejętność zdobyłem?"></textarea>
     </div>
     <div class="form-group">
       <label>Kategoria</label>
@@ -1715,14 +1723,16 @@
     const title      = document.getElementById("proof-title").value.trim();
     const problem    = document.getElementById("proof-problem").value.trim();
     const solution   = document.getElementById("proof-solution").value.trim();
-    const result     = document.getElementById("proof-result").value.trim();
+    const why        = document.getElementById("proof-why").value.trim();
+    const hardest    = document.getElementById("proof-hardest").value.trim();
+    const learned    = document.getElementById("proof-learned").value.trim();
     const proof_link = document.getElementById("proof-link").value.trim();
     const category   = document.getElementById("proof-category").value;
     const isProject  = document.getElementById("is-project").checked;
     const existingProjectId = document.getElementById("proof-project-id").value || currentProjectId || null;
 
-    if (!title || !problem || !solution || !result)
-      return showMsg("msg-proof", "Wypełnij pola: tytuł, problem, rozwiązanie i wynik.", "error");
+    if (!title || !problem || !solution)
+      return showMsg("msg-proof", "Wypełnij przynajmniej pierwsze trzy pola.", "error");
 
     // Upload zdjęcia
     const imageFile = document.getElementById("proof-image-input").files[0];
@@ -1747,7 +1757,10 @@
     }
 
     const { error } = await supabaseClient.from("proofs").insert([{
-      user_id: user.id, title, problem, solution, result, category,
+      user_id: user.id, title, problem, solution, category,
+      why:      why      || null,
+      hardest:  hardest  || null,
+      learned:  learned  || null,
       proof_link: proof_link || null,
       project_id: projectId || null,
       image_url: image_url || null,
@@ -1760,7 +1773,7 @@
       const addSection = document.getElementById("page-add");
       addSection.classList.add("pop");
       addSection.addEventListener("animationend", () => addSection.classList.remove("pop"), { once: true });
-      ["proof-title","proof-problem","proof-solution","proof-result","proof-link"]
+      ["proof-title","proof-problem","proof-solution","proof-why","proof-hardest","proof-learned","proof-link"]
         .forEach(id => { document.getElementById(id).value = ""; });
       document.getElementById("is-project").checked = false;
       document.getElementById("proof-project-id").value = "";
@@ -2422,12 +2435,13 @@
       ${imgHtml}
       <div class="proof-title">${escapeHtml(proof.title)}</div>
       ${categoryLabel ? `<span class="proof-category">${escapeHtml(categoryLabel)}</span>` : ""}
-      <p class="proof-meta">Problem</p>
+      <p class="proof-meta">Co udało mi się zrobić?</p>
       <p class="proof-text">${escapeHtml(proof.problem)}</p>
-      <p class="proof-meta">Rozwiązanie</p>
+      <p class="proof-meta">Czego użyłem?</p>
       <p class="proof-text">${escapeHtml(proof.solution)}</p>
-      <p class="proof-meta">Wynik</p>
-      <span class="proof-result-badge">${escapeHtml(proof.result)}</span>
+      ${proof.why     ? `<p class="proof-meta">Dlaczego takie rozwiązanie?</p><p class="proof-text">${escapeHtml(proof.why)}</p>` : ""}
+      ${proof.hardest ? `<p class="proof-meta">Co było najtrudniejsze?</p><p class="proof-text">${escapeHtml(proof.hardest)}</p>` : ""}
+      ${proof.learned ? `<p class="proof-meta">Czego się nauczyłem?</p><p class="proof-text">${escapeHtml(proof.learned)}</p>` : ""}
       <div class="proof-footer">
         <span class="proof-date">${date}</span>
         <div class="proof-actions">
