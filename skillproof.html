@@ -282,11 +282,17 @@
       font-size: 0.93rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background var(--transition), transform 0.1s, box-shadow var(--transition);
+      transition: background var(--transition), transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
     }
 
-    .btn:hover  { box-shadow: var(--shadow-md); }
-    .btn:active { transform: scale(0.97); }
+    .btn:hover  { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+    .btn:active { transform: scale(0.97); opacity: 0.95; }
+
+    button {
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+    button:hover  { transform: translateY(-1px); }
+    button:active { transform: scale(0.97); opacity: 0.95; }
 
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { background: var(--accent-hover); }
