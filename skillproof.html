@@ -1641,12 +1641,12 @@
       nav.classList.add("visible");
       auth.classList.add("hidden");
       logout.classList.remove("hidden");
-      email.textContent  = user.email;
       xpEl.style.display = "inline-block";
       supabaseClient.from("profiles").select("xp, username, role")
         .eq("id", user.id).single()
         .then(async ({ data: p }) => {
           updateXPDisplay(p?.xp || 0);
+          email.textContent = p?.username || user.email;
           if (p?.role === "teacher") {
             document.getElementById("nav-teacher").classList.remove("hidden");
           }
@@ -1656,6 +1656,7 @@
             await supabaseClient.from("profiles")
               .upsert({ id: user.id, username: pending }, { onConflict: "id" });
             localStorage.removeItem("pending_nick");
+            email.textContent = pending;
           }
         });
     } else {
@@ -2036,7 +2037,7 @@
     if (error) { alert(error.message); return; }
 
     // Nagłówek — nazwa i email
-    const displayName = profile?.username || user.email;
+    const displayName = profile?.username || "—";
     nameEl.textContent = displayName;
     const emailEl = document.getElementById("profile-email");
     if (emailEl) emailEl.textContent = user.email;
