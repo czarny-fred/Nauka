@@ -2543,6 +2543,7 @@
       .from("projects")
       .select("*, proofs(count)")
       .eq("user_id", user.id)
+      .neq("status", "finished")
       .order("created_at", { ascending: false });
 
     loadingEl.classList.add("hidden");
