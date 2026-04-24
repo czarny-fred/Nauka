@@ -764,6 +764,13 @@
     .proof-image-upload:hover { border-color: var(--accent); background: var(--accent-bg); }
     .proof-image-upload input[type="file"] { display: none; }
 
+    .proof-image-thumbs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex: 1;
+    }
+
     .proof-image-thumb {
       width: 64px; height: 64px;
       border-radius: 8px;
@@ -817,6 +824,34 @@
     }
 
     .proof-card-img-wrap:hover::after { opacity: 1; }
+
+    /* ── Multi-image gallery in card ── */
+    .proof-card-gallery {
+      margin: -20px -22px 16px;
+      display: flex;
+      overflow-x: auto;
+      gap: 3px;
+      scroll-snap-type: x mandatory;
+      border-radius: 14px 14px 0 0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .proof-card-gallery::-webkit-scrollbar { display: none; }
+
+    .proof-card-gallery img {
+      flex-shrink: 0;
+      width: 72%;
+      height: 220px;
+      object-fit: cover;
+      scroll-snap-align: start;
+      cursor: zoom-in;
+      transition: opacity 0.2s;
+    }
+
+    .proof-card-gallery img:first-child { border-radius: 14px 0 0 0; }
+    .proof-card-gallery img:last-child  { border-radius: 0 14px 0 0; }
+    .proof-card-gallery img:only-child  { width: 100%; border-radius: 14px 14px 0 0; }
+    .proof-card-gallery img:hover { opacity: 0.92; }
 
     /* ── Lightbox ── */
     #lightbox {
@@ -1245,12 +1280,14 @@
     <div class="form-group">
       <label>Zdjęcie (opcjonalnie)</label>
       <label class="proof-image-upload" for="proof-image-input">
-        <div class="proof-image-thumb" id="proof-image-thumb">🖼️</div>
-        <div class="proof-image-upload-text">
-          <strong>Kliknij, aby dodać zdjęcie</strong>
-          JPG, PNG, WebP — maks. 5 MB
+        <div class="proof-image-thumbs" id="proof-image-thumbs">
+          <div class="proof-image-thumb" id="proof-image-thumb-placeholder">🖼️</div>
         </div>
-        <input type="file" id="proof-image-input" accept="image/*" onchange="previewProofImage(event)" />
+        <div class="proof-image-upload-text">
+          <strong>Kliknij, aby dodać zdjęcia</strong>
+          JPG, PNG, WebP — maks. 10 MB każde, można wybrać kilka
+        </div>
+        <input type="file" id="proof-image-input" accept="image/*" multiple onchange="previewProofImage(event)" />
       </label>
     </div>
     <hr class="divider" />
@@ -1734,14 +1771,19 @@
     if (!title || !problem || !solution)
       return showMsg("msg-proof", "Wypełnij przynajmniej pierwsze trzy pola.", "error");
 
-    // Upload zdjęcia
-    const imageFile = document.getElementById("proof-image-input").files[0];
-    let image_url = null;
-    if (imageFile) {
-      if (imageFile.size > 10 * 1024 * 1024)
-        return showMsg("msg-proof", "Zdjęcie za duże (maks. 10 MB).", "error");
-      image_url = await uploadProofImage(imageFile);
-      if (image_url === null) return; // błąd już pokazany w uploadProofImage
+    // Upload zdjęć (wiele)
+    const imageFiles = Array.from(document.getElementById("proof-image-input").files);
+    let image_url  = null;
+    let image_urls = null;
+    if (imageFiles.length > 0) {
+      for (const f of imageFiles)
+        if (f.size > 10 * 1024 * 1024)
+          return showMsg("msg-proof", `Zdjęcie "${f.name}" za duże (maks. 10 MB).`, "error");
+      showMsg("msg-proof", "Wysyłanie zdjęć…", "");
+      const uploaded = await Promise.all(imageFiles.map(f => uploadProofImage(f)));
+      if (uploaded.some(u => u === null)) return;
+      image_urls = uploaded;
+      image_url  = uploaded[0];
     }
 
     // Utwórz nowy projekt jeśli zaznaczono
@@ -1763,7 +1805,8 @@
       learned:  learned  || null,
       proof_link: proof_link || null,
       project_id: projectId || null,
-      image_url: image_url || null,
+      image_url:  image_url  || null,
+      image_urls: image_urls || null,
     }]);
 
     if (error) {
@@ -1778,8 +1821,8 @@
       document.getElementById("is-project").checked = false;
       document.getElementById("proof-project-id").value = "";
       document.getElementById("proof-image-input").value = "";
-      document.getElementById("proof-image-thumb").innerHTML = "🖼️";
-      document.getElementById("proof-image-thumb").classList.remove("has-image");
+      const thumbsEl = document.getElementById("proof-image-thumbs");
+      thumbsEl.innerHTML = `<div class="proof-image-thumb" id="proof-image-thumb-placeholder">🖼️</div>`;
       toggleProjectFields();
       if (currentProjectId) {
         currentProjectId = null;
@@ -2424,10 +2467,10 @@
       : "";
 
     const categoryLabel = proof.category ? (CATEGORIES[proof.category] || proof.category) : null;
-    const imgHtml = proof.image_url
-      ? `<div class="proof-card-img-wrap">
-           <img src="${escapeHtml(proof.image_url)}" alt="${escapeHtml(proof.title)}"
-                loading="lazy" onclick="openLightbox('${escapeHtml(proof.image_url)}')" />
+    const imgs = proof.image_urls?.length ? proof.image_urls : (proof.image_url ? [proof.image_url] : []);
+    const imgHtml = imgs.length
+      ? `<div class="proof-card-gallery">
+           ${imgs.map(u => `<img src="${escapeHtml(u)}" alt="${escapeHtml(proof.title)}" loading="lazy" onclick="openLightbox('${escapeHtml(u)}')" />`).join("")}
          </div>`
       : "";
 
@@ -2665,12 +2708,19 @@
   //  ZDJĘCIA PROOFÓW
   // ══════════════════════════════════════════
   function previewProofImage(event) {
-    const file  = event.target.files[0];
-    if (!file) return;
-    const thumb = document.getElementById("proof-image-thumb");
-    const url   = URL.createObjectURL(file);
-    thumb.innerHTML = `<img src="${url}" alt="podgląd" />`;
-    thumb.classList.add("has-image");
+    const files   = Array.from(event.target.files);
+    if (!files.length) return;
+    const container = document.getElementById("proof-image-thumbs");
+    container.innerHTML = "";
+    files.forEach(file => {
+      const thumb = document.createElement("div");
+      thumb.className = "proof-image-thumb has-image";
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(file);
+      img.alt = file.name;
+      thumb.appendChild(img);
+      container.appendChild(thumb);
+    });
   }
 
   function compressImage(file, maxWidth = 1200) {
