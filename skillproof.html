@@ -1287,8 +1287,19 @@
   <div id="user-meta">
     <span id="header-xp"></span>
     <span id="header-email" style="font-size:0.83rem;color:var(--text-2);"></span>
+    <button id="btn-notifications" class="hidden" onclick="toggleNotifications()"
+            style="position:relative;background:none;border:none;cursor:pointer;padding:4px;font-size:1.1rem;line-height:1;">
+      🔔<span id="notif-badge" class="hidden"
+              style="position:absolute;top:0;right:0;background:#ef4444;color:#fff;border-radius:50%;font-size:0.6rem;font-weight:700;width:14px;height:14px;display:flex;align-items:center;justify-content:center;line-height:1;"></span>
+    </button>
     <button id="btn-dark" onclick="toggleDarkMode()" title="Tryb ciemny"></button>
     <button class="btn-sm hidden" id="btn-logout" onclick="logout()">Wyloguj</button>
+  </div>
+  <!-- Panel powiadomień -->
+  <div id="notif-panel" class="hidden"
+       style="position:fixed;top:56px;right:12px;width:min(340px,calc(100vw - 24px));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);z-index:200;max-height:400px;overflow-y:auto;padding:14px 16px;">
+    <div style="font-weight:700;font-size:0.9rem;margin-bottom:10px;color:var(--text);">Powiadomienia</div>
+    <div id="notif-list"><p class="state-msg">Ładowanie…</p></div>
   </div>
 </header>
 
@@ -1647,24 +1658,45 @@
     <div id="teacher-class-view">
       <div style="margin-bottom:18px;">
         <div style="font-size:1.05rem;font-weight:800;color:var(--text);margin-bottom:4px;">Panel nauczyciela</div>
-        <div style="font-size:0.8rem;color:var(--text-muted);" id="teacher-class-name"></div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <button class="btn btn-secondary" id="teacher-tab-students" style="font-size:0.85rem;padding:7px 16px;"
-                onclick="switchTeacherTab('students')">Uczniowie</button>
-        <button class="btn btn-secondary" id="teacher-tab-moderation" style="font-size:0.85rem;padding:7px 16px;"
-                onclick="switchTeacherTab('moderation')">Moderacja</button>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="btn btn-secondary" id="teacher-tab-students"   style="font-size:0.85rem;padding:7px 16px;" onclick="switchTeacherTab('students')">Uczniowie</button>
+        <button class="btn btn-secondary" id="teacher-tab-moderation" style="font-size:0.85rem;padding:7px 16px;" onclick="switchTeacherTab('moderation')">Moderacja</button>
+        <button class="btn btn-secondary" id="teacher-tab-subjects"   style="font-size:0.85rem;padding:7px 16px;" onclick="switchTeacherTab('subjects')">Moje przedmioty</button>
       </div>
+
+      <!-- Tab: uczniowie -->
       <div id="teacher-panel-students">
-        <div id="teacher-loading" class="state-msg">Ladowanie...</div>
-        <div id="teacher-empty" class="state-msg hidden">Brak uczniow w klasie.</div>
+        <div id="teacher-loading" class="state-msg">Ładowanie...</div>
+        <div id="teacher-empty" class="state-msg hidden">Brak uczniów.</div>
         <div id="teacher-students-list" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
+
+      <!-- Tab: moderacja -->
       <div id="teacher-panel-moderation" class="hidden">
-        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Wszystkie komentarze — kliknij Usuń jeśli treść jest nieodpowiednia.</div>
-        <div id="mod-loading" class="state-msg">Ładowanie…</div>
-        <div id="mod-empty" class="state-msg hidden">Brak komentarzy.</div>
-        <div id="mod-comments-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Komentarze i posty — usuń nieodpowiednie treści.</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn btn-secondary" id="mod-tab-comments" style="font-size:0.82rem;padding:6px 14px;" onclick="switchModTab('comments')">Komentarze</button>
+          <button class="btn btn-secondary" id="mod-tab-proofs"   style="font-size:0.82rem;padding:6px 14px;" onclick="switchModTab('proofs')">Posty</button>
+        </div>
+        <div id="mod-panel-comments">
+          <div id="mod-loading" class="state-msg">Ładowanie…</div>
+          <div id="mod-empty" class="state-msg hidden">Brak komentarzy.</div>
+          <div id="mod-comments-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+        <div id="mod-panel-proofs" class="hidden">
+          <div id="mod-proofs-loading" class="state-msg">Ładowanie…</div>
+          <div id="mod-proofs-empty" class="state-msg hidden">Brak postów.</div>
+          <div id="mod-proofs-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </div>
+
+      <!-- Tab: moje przedmioty -->
+      <div id="teacher-panel-subjects" class="hidden">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">Zaznacz przedmioty których uczysz. Proofy z tych przedmiotów będą wyżej w feedzie.</p>
+        <div id="teacher-subjects-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+        <button class="btn btn-primary" style="font-size:0.88rem;" onclick="saveTeacherSubjects()">Zapisz</button>
+        <div class="msg" id="msg-teacher-subjects" style="margin-top:8px;"></div>
       </div>
     </div>
 
@@ -1828,6 +1860,7 @@
       auth.classList.add("hidden");
       logout.classList.remove("hidden");
       xpEl.style.display = "inline-block";
+      checkNotificationsBadge();
       supabaseClient.from("profiles").select("xp, username, role")
         .eq("id", user.id).single()
         .then(async ({ data: p }) => {
@@ -2100,15 +2133,26 @@
       .from("profiles").select("id, xp").in("id", authorIds);
     const xpMap = new Map((profiles || []).map(p => [p.id, p.xp || 0]));
 
-    // Scoring: lajki×3 + komentarze×5 + świeżość (max 10) + xp_autora/50
+    // Pobierz przedmioty nauczycieli do boostowania feedu
+    const { data: teacherProfiles } = await supabaseClient
+      .from("profiles").select("teacher_subjects").eq("role", "teacher");
+    const taughtSubjects = new Set(
+      (teacherProfiles || []).flatMap(t =>
+        Array.isArray(t.teacher_subjects) ? t.teacher_subjects : []
+      )
+    );
+
+    // Scoring: lajki×3 + komentarze×5 + świeżość (max 10) + xp_autora/50 + boost nauczyciela×20
     const now = Date.now();
     const scored = data.map(p => {
       const daysOld     = (now - new Date(p.created_at)) / 86400000;
       const likeCount   = p.likes?.[0]?.count    || 0;
       const commentCount= p.comments?.[0]?.count || 0;
+      const teacherBoost = taughtSubjects.has(p.category) ? 20 : 0;
       const score       = likeCount * 3 + commentCount * 5
                         + Math.max(0, 10 - daysOld)
-                        + (xpMap.get(p.user_id) || 0) / 50;
+                        + (xpMap.get(p.user_id) || 0) / 50
+                        + teacherBoost;
       return { ...p, _score: score };
     }).sort((a, b) => b._score - a._score);
 
@@ -3116,61 +3160,45 @@
   // ══════════════════════════════════════════
   async function loadTeacherPanel() {
     if (!user) return;
+    switchTeacherTab("students");
+  }
 
+  function switchTeacherTab(tab) {
+    ["students","moderation","subjects"].forEach(t => {
+      document.getElementById(`teacher-panel-${t}`).classList.toggle("hidden", t !== tab);
+      document.getElementById(`teacher-tab-${t}`).classList.toggle("btn-primary", t === tab);
+    });
+    if (tab === "students")   loadTeacherStudents();
+    if (tab === "moderation") { switchModTab("comments"); }
+    if (tab === "subjects")   loadTeacherSubjectsPanel();
+  }
+
+  async function loadTeacherStudents() {
     const listEl    = document.getElementById("teacher-students-list");
     const loadingEl = document.getElementById("teacher-loading");
     const emptyEl   = document.getElementById("teacher-empty");
-    const classNameEl = document.getElementById("teacher-class-name");
 
+    if (listEl.children.length > 0) return;
     listEl.innerHTML = "";
     loadingEl.classList.remove("hidden");
     emptyEl.classList.add("hidden");
 
-    // Znajdz klase nauczyciela + uczniow z XP i liczba proofow
-    const { data: classData } = await supabaseClient
-      .from("classes")
-      .select("id, name")
-      .eq("teacher_id", user.id)
-      .maybeSingle();
-
-    if (!classData) {
-      loadingEl.classList.add("hidden");
-      classNameEl.textContent = "Nie przypisano klasy.";
-      emptyEl.classList.remove("hidden");
-      return;
-    }
-
-    classNameEl.textContent = `Klasa: ${classData.name}`;
-
     const [{ data: students }, { data: proofCounts }] = await Promise.all([
-      supabaseClient.from("profiles")
-        .select("id, username, avatar_url, xp, level")
-        .eq("class_id", classData.id),
-      supabaseClient.from("proofs")
-        .select("user_id")
+      supabaseClient.from("profiles").select("id, username, avatar_url, xp, level").neq("role","teacher").order("xp", { ascending: false }),
+      supabaseClient.from("proofs").select("user_id")
     ]);
 
     loadingEl.classList.add("hidden");
+    if (!students || students.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
-    if (!students || students.length === 0) {
-      emptyEl.classList.remove("hidden");
-      return;
-    }
-
-    // Policz proofy per student
     const proofCountMap = {};
-    (proofCounts || []).forEach(p => {
-      proofCountMap[p.user_id] = (proofCountMap[p.user_id] || 0) + 1;
-    });
+    (proofCounts || []).forEach(p => { proofCountMap[p.user_id] = (proofCountMap[p.user_id] || 0) + 1; });
 
     students.forEach((s, i) => {
-      const count  = proofCountMap[s.id] || 0;
-      const level  = s.level || Math.floor((s.xp || 0) / 100) + 1;
+      const count    = proofCountMap[s.id] || 0;
+      const level    = s.level || Math.floor((s.xp || 0) / 100) + 1;
       const initials = (s.username || s.id.slice(0, 2)).slice(0, 2).toUpperCase();
-      const avatarHtml = s.avatar_url
-        ? `<img src="${escapeHtml(s.avatar_url)}" alt="" />`
-        : initials;
-
+      const avatarHtml = s.avatar_url ? `<img src="${escapeHtml(s.avatar_url)}" alt="" />` : initials;
       const card = document.createElement("div");
       card.className = "teacher-student-card";
       card.style.animationDelay = `${i * 30}ms`;
@@ -3179,7 +3207,7 @@
         <div class="student-avatar">${avatarHtml}</div>
         <div class="student-info">
           <div class="student-name">${escapeHtml(s.username || s.id.slice(0, 8))}</div>
-          <div class="student-meta">Poziom ${level} &nbsp;·&nbsp; ${count} ${count === 1 ? "proof" : "proofow"}</div>
+          <div class="student-meta">Poziom ${level} &nbsp;·&nbsp; ${count} ${count === 1 ? "proof" : "proofów"}</div>
         </div>
         <svg width="7" height="12" viewBox="0 0 7 12" fill="none" style="flex-shrink:0;opacity:.35">
           <path d="M1 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -3322,33 +3350,30 @@
     document.getElementById("teacher-class-view").classList.remove("hidden");
   }
 
-  function switchTeacherTab(tab) {
-    const isStudents = tab === "students";
-    document.getElementById("teacher-panel-students").classList.toggle("hidden", !isStudents);
-    document.getElementById("teacher-panel-moderation").classList.toggle("hidden", isStudents);
-    document.getElementById("teacher-tab-students").classList.toggle("btn-primary", isStudents);
-    document.getElementById("teacher-tab-moderation").classList.toggle("btn-primary", !isStudents);
-    if (!isStudents) loadModeration();
+  // ── Moderacja — komentarze i posty ──
+  function switchModTab(tab) {
+    ["comments","proofs"].forEach(t => {
+      document.getElementById(`mod-panel-${t}`).classList.toggle("hidden", t !== tab);
+      document.getElementById(`mod-tab-${t}`).classList.toggle("btn-primary", t === tab);
+    });
+    if (tab === "comments") loadModerationComments();
+    if (tab === "proofs")   loadModerationProofs();
   }
 
-  async function loadModeration() {
+  async function loadModerationComments() {
     const listEl    = document.getElementById("mod-comments-list");
     const loadingEl = document.getElementById("mod-loading");
     const emptyEl   = document.getElementById("mod-empty");
-
     if (listEl.children.length > 0) return;
-
     loadingEl.classList.remove("hidden");
     emptyEl.classList.add("hidden");
 
     const { data, error } = await supabaseClient
       .from("comments")
       .select("id, content, created_at, user_id, proof_id, profiles!user_id(username)")
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .order("created_at", { ascending: false }).limit(200);
 
     loadingEl.classList.add("hidden");
-
     if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
 
     data.forEach(c => {
@@ -3357,30 +3382,184 @@
       div.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);";
       div.innerHTML = `
         <div style="min-width:0;">
-          <div style="font-size:0.8rem;color:var(--accent);font-weight:700;margin-bottom:2px;">
-            ${escapeHtml(c.profiles?.username || c.user_id?.slice(0,8) || "?")}
-          </div>
+          <div style="font-size:0.8rem;color:var(--accent);font-weight:700;margin-bottom:2px;">${escapeHtml(c.profiles?.username || "?")}</div>
           <div style="font-size:0.88rem;color:var(--text);word-break:break-word;">${escapeHtml(c.content)}</div>
-          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">
-            ${new Date(c.created_at).toLocaleDateString("pl-PL", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })}
-          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${new Date(c.created_at).toLocaleDateString("pl-PL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
         </div>
-        <button class="btn" style="background:var(--error,#e53e3e);color:#fff;font-size:0.8rem;padding:5px 12px;flex-shrink:0;"
-                onclick="deleteComment('${c.id}')">Usuń</button>
+        <button class="btn" style="background:#e53e3e;color:#fff;font-size:0.8rem;padding:5px 12px;flex-shrink:0;"
+                onclick="deleteComment('${c.id}','${c.user_id}')">Usuń</button>
       `;
       listEl.appendChild(div);
     });
   }
 
-  async function deleteComment(commentId) {
-    if (!confirm("Usunąć ten komentarz?")) return;
+  async function loadModerationProofs() {
+    const listEl    = document.getElementById("mod-proofs-list");
+    const loadingEl = document.getElementById("mod-proofs-loading");
+    const emptyEl   = document.getElementById("mod-proofs-empty");
+    if (listEl.children.length > 0) return;
+    loadingEl.classList.remove("hidden");
+    emptyEl.classList.add("hidden");
+
+    const { data, error } = await supabaseClient
+      .from("proofs")
+      .select("id, title, problem, created_at, user_id, profiles!user_id(username)")
+      .order("created_at", { ascending: false }).limit(200);
+
+    loadingEl.classList.add("hidden");
+    if (error || !data || data.length === 0) { emptyEl.classList.remove("hidden"); return; }
+
+    data.forEach(p => {
+      const div = document.createElement("div");
+      div.id = `mod-p-${p.id}`;
+      div.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);";
+      div.innerHTML = `
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:0.8rem;color:var(--accent);font-weight:700;margin-bottom:2px;">${escapeHtml(p.profiles?.username || "?")}</div>
+          <div style="font-size:0.9rem;font-weight:700;color:var(--text);">${escapeHtml(p.title)}</div>
+          <div style="font-size:0.82rem;color:var(--text-2);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.problem)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${new Date(p.created_at).toLocaleDateString("pl-PL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
+        </div>
+        <button class="btn" style="background:#e53e3e;color:#fff;font-size:0.8rem;padding:5px 12px;flex-shrink:0;"
+                onclick="deleteProofAsTeacher('${p.id}','${p.user_id}')">Usuń</button>
+      `;
+      listEl.appendChild(div);
+    });
+  }
+
+  async function deleteComment(commentId, authorId) {
+    const reason = prompt("Podaj powód usunięcia komentarza (zostanie wysłany do ucznia):");
+    if (reason === null) return;
     const { error } = await supabaseClient.from("comments").delete().eq("id", commentId);
     if (error) { alert(error.message); return; }
+    if (authorId) await sendNotification(authorId, `Twój komentarz został usunięty przez nauczyciela.${reason ? " Powód: " + reason : ""}`);
     document.getElementById(`mod-c-${commentId}`)?.remove();
-    const listEl = document.getElementById("mod-comments-list");
-    if (listEl.children.length === 0)
+    if (!document.getElementById("mod-comments-list").children.length)
       document.getElementById("mod-empty").classList.remove("hidden");
   }
+
+  async function deleteProofAsTeacher(proofId, authorId) {
+    const reason = prompt("Podaj powód usunięcia posta (zostanie wysłany do ucznia):");
+    if (reason === null) return;
+    const { error } = await supabaseClient.from("proofs").delete().eq("id", proofId);
+    if (error) { alert(error.message); return; }
+    if (authorId) await sendNotification(authorId, `Twój post został usunięty przez nauczyciela.${reason ? " Powód: " + reason : ""}`);
+    document.getElementById(`mod-p-${proofId}`)?.remove();
+    // Odśwież feed
+    loadProofs();
+    if (!document.getElementById("mod-proofs-list").children.length)
+      document.getElementById("mod-proofs-empty").classList.remove("hidden");
+  }
+
+  // ── Przedmioty nauczyciela ──
+  let _teacherSubjects = [];
+
+  async function loadTeacherSubjectsPanel() {
+    const grid = document.getElementById("teacher-subjects-grid");
+    if (grid.children.length > 0) return;
+
+    const { data: prof } = await supabaseClient
+      .from("profiles").select("teacher_subjects").eq("id", user.id).single();
+    _teacherSubjects = prof?.teacher_subjects || [];
+
+    Object.entries(CATEGORIES).forEach(([key, label]) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-secondary";
+      btn.style.cssText = "font-size:0.82rem;padding:6px 14px;";
+      btn.textContent = label;
+      btn.dataset.key = key;
+      if (_teacherSubjects.includes(key)) {
+        btn.classList.add("btn-primary");
+      }
+      btn.onclick = () => {
+        btn.classList.toggle("btn-primary");
+        btn.classList.toggle("btn-secondary");
+      };
+      grid.appendChild(btn);
+    });
+  }
+
+  async function saveTeacherSubjects() {
+    const grid = document.getElementById("teacher-subjects-grid");
+    const selected = Array.from(grid.querySelectorAll(".btn-primary")).map(b => b.dataset.key);
+    const { error } = await supabaseClient.from("profiles")
+      .update({ teacher_subjects: selected }).eq("id", user.id);
+    if (error) { showMsg("msg-teacher-subjects", error.message, "error"); return; }
+    _teacherSubjects = selected;
+    showMsg("msg-teacher-subjects", "Zapisano!", "success");
+    // Przeładuj feed z nowym priorytetem
+    allProofs = [];
+    loadProofs();
+  }
+
+  // ── Powiadomienia ──
+  async function sendNotification(userId, message) {
+    await supabaseClient.from("notifications").insert([{ user_id: userId, message }]);
+  }
+
+  async function loadNotifications() {
+    const listEl = document.getElementById("notif-list");
+    listEl.innerHTML = '<p class="state-msg">Ładowanie…</p>';
+
+    const { data } = await supabaseClient
+      .from("notifications")
+      .select("id, message, read, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (!data || data.length === 0) {
+      listEl.innerHTML = '<p style="font-size:0.85rem;color:var(--text-muted);">Brak powiadomień.</p>';
+      return;
+    }
+
+    listEl.innerHTML = data.map(n => `
+      <div id="notif-${n.id}" style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
+        <div style="flex:1;font-size:0.86rem;color:${n.read ? "var(--text-muted)" : "var(--text)"};font-weight:${n.read ? 400 : 600};">
+          ${escapeHtml(n.message)}
+          <div style="font-size:0.74rem;color:var(--text-muted);margin-top:2px;">${new Date(n.created_at).toLocaleDateString("pl-PL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
+        </div>
+      </div>
+    `).join("");
+
+    // Oznacz jako przeczytane
+    const unreadIds = data.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length) {
+      await supabaseClient.from("notifications").update({ read: true }).in("id", unreadIds);
+      document.getElementById("notif-badge").classList.add("hidden");
+    }
+  }
+
+  async function checkNotificationsBadge() {
+    if (!user) return;
+    const { count } = await supabaseClient.from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id).eq("read", false);
+    const badge = document.getElementById("notif-badge");
+    const btn   = document.getElementById("btn-notifications");
+    if (count > 0) {
+      badge.textContent = count > 9 ? "9+" : count;
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+    btn.classList.remove("hidden");
+  }
+
+  function toggleNotifications() {
+    const panel = document.getElementById("notif-panel");
+    const hidden = panel.classList.toggle("hidden");
+    if (!hidden) loadNotifications();
+  }
+
+  // Zamknij panel powiadomień kliknięciem poza nim
+  document.addEventListener("click", e => {
+    const panel = document.getElementById("notif-panel");
+    const btn   = document.getElementById("btn-notifications");
+    if (!panel.classList.contains("hidden") && !panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+      panel.classList.add("hidden");
+    }
+  });
 
   //  HELPERS
   // ══════════════════════════════════════════
