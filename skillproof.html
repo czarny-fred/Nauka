@@ -1627,10 +1627,15 @@
   });
 
   (async () => {
-    const { data } = await supabaseClient.auth.getSession();
-    if (data.session) setUser(data.session.user);
-    await Promise.all([loadProofs(), loadFeatured()]);
-    document.getElementById("app-loading").style.display = "none";
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data.session) setUser(data.session.user);
+      await Promise.all([loadProofs(), loadFeatured()]);
+    } catch(e) {
+      console.error("Init error:", e);
+    } finally {
+      document.getElementById("app-loading").style.display = "none";
+    }
   })();
 
   // ══════════════════════════════════════════
@@ -1798,16 +1803,18 @@
       projectId = proj.id;
     }
 
-    const { error } = await supabaseClient.from("proofs").insert([{
+    const proofRow = {
       user_id: user.id, title, problem, solution, category,
-      why:      why      || null,
-      hardest:  hardest  || null,
-      learned:  learned  || null,
       proof_link: proof_link || null,
-      project_id: projectId || null,
+      project_id: projectId  || null,
       image_url:  image_url  || null,
-      image_urls: image_urls || null,
-    }]);
+    };
+    if (why)        proofRow.why        = why;
+    if (hardest)    proofRow.hardest    = hardest;
+    if (learned)    proofRow.learned    = learned;
+    if (image_urls) proofRow.image_urls = image_urls;
+
+    const { error } = await supabaseClient.from("proofs").insert([proofRow]);
 
     if (error) {
       showMsg("msg-proof", error.message, "error");
